@@ -1,3 +1,5 @@
+import type { Contact } from "../lib/contacts";
+
 export type User = { id: string; username: string; email: string; mustReset: boolean };
 
 export type LastLogin = { at: string; deviceName?: string; city?: string; country?: string } | null;
@@ -22,6 +24,10 @@ export type Screen =
   | { name: "adminReset" }
   | { name: "reset" }
   | { name: "home" }
+  | { name: "myId" }
+  | { name: "add" }
+  | { name: "contact"; contact: Contact }
+  | { name: "settings" }
   | { name: "security" }
   | { name: "closed"; closed: Closed };
 

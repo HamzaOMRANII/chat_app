@@ -1,25 +1,32 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { api, ApiError, tokenStore } from "../lib/api";
 import { isNativeApp, SERVER_ORIGIN } from "../lib/platform";
 import { AdminResetPage } from "../pages/AdminResetPage";
 import { ClosedPage } from "../pages/ClosedPage";
 import { CodePage } from "../pages/CodePage";
-import { HomePage } from "../pages/HomePage";
+import { AddContactPage } from "../pages/AddContactPage";
+import { ContactPage } from "../pages/ContactPage";
+import { ContactsPage } from "../pages/ContactsPage";
+import { MyIdPage } from "../pages/MyIdPage";
 import { LoginPage } from "../pages/LoginPage";
 import { PasscodePage } from "../pages/PasscodePage";
 import { PendingPage } from "../pages/PendingPage";
 import { ResetPage } from "../pages/ResetPage";
 import { SecurityLogPage } from "../pages/SecurityLogPage";
+import { SettingsPage } from "../pages/SettingsPage";
 import { SignUpPage } from "../pages/SignUpPage";
 import type { Closed, LastLogin, Screen, User } from "./types";
 
 const CLOSED_CODES = new Set(["session_revoked", "session_closed", "account_unavailable"]);
+const SIGNED_IN_SCREENS = new Set<Screen["name"]>(["home", "myId", "add", "contact", "settings", "security"]);
 
 export function App() {
   const [screen, setScreen] = useState<Screen>({ name: "loading" });
   const [user, setUser] = useState<User | null>(null);
   const [lastLogin, setLastLogin] = useState<LastLogin>(null);
+  // Bumped on "contacts:changed" so open contact screens reload
+  const [contactsVersion, setContactsVersion] = useState(0);
 
   const showClosed = useCallback((closed: Closed) => {
     tokenStore.clear();
@@ -54,8 +61,8 @@ export function App() {
       });
   }, [enter, handleAuthError]);
 
-  // While signed in, listen for "signed in on another device" (and other session ends)
-  const signedIn = screen.name === "home" || screen.name === "security";
+  // While signed in: "signed in on another device" (and other session ends), contact changes, presence
+  const signedIn = SIGNED_IN_SCREENS.has(screen.name);
   useEffect(() => {
     if (!signedIn) return;
     const socket = io(SERVER_ORIGIN || undefined, {
@@ -72,6 +79,9 @@ export function App() {
         at: new Date().toISOString(),
       });
     });
+    socket.on("contacts:changed", () => setContactsVersion((v) => v + 1));
+    // Missed events while offline: reload on every reconnect
+    socket.on("connect", () => setContactsVersion((v) => v + 1));
     socket.on("connect_error", (err: Error & { data?: Partial<Closed> }) => {
       if (err.message === "unauthorized" && err.data?.reason) showClosed({ code: "session_revoked", ...err.data });
     });
@@ -88,6 +98,23 @@ export function App() {
   }
 
   const toLogin = (notice?: string) => setScreen({ name: "login", notice });
+  const home = useCallback(() => setScreen({ name: "home" }), []);
+
+  // Android back button: go up one screen; on a top screen, leave the app as usual.
+  const screenRef = useRef(screen);
+  screenRef.current = screen;
+  useEffect(() => {
+    if (!isNativeApp) return;
+    let remove = () => {};
+    void import("@capacitor/app").then(({ App: NativeApp }) =>
+      NativeApp.addListener("backButton", () => {
+        const parent = parentScreen(screenRef.current);
+        if (parent) setScreen(parent);
+        else void NativeApp.exitApp();
+      }).then((handle) => (remove = () => void handle.remove())),
+    );
+    return () => remove();
+  }, []);
 
   switch (screen.name) {
     case "loading":
@@ -129,10 +156,50 @@ export function App() {
     case "reset":
       return user ? <ResetPage user={user} onDone={(u) => enter(u)} onSignOut={signOut} /> : null;
     case "home":
-      return user ? <HomePage user={user} lastLogin={lastLogin} onSecurityLog={() => setScreen({ name: "security" })} onSignOut={signOut} /> : null;
+      return (
+        <ContactsPage
+          lastLogin={lastLogin}
+          version={contactsVersion}
+          onMyId={() => setScreen({ name: "myId" })}
+          onAdd={() => setScreen({ name: "add" })}
+          onOpen={(contact) => setScreen({ name: "contact", contact })}
+          onSettings={() => setScreen({ name: "settings" })}
+          onAuthError={handleAuthError}
+        />
+      );
+    case "myId":
+      return <MyIdPage onBack={home} onAuthError={handleAuthError} />;
+    case "add":
+      return <AddContactPage onBack={home} onAdded={(contact) => setScreen({ name: "contact", contact })} onAuthError={handleAuthError} />;
+    case "contact":
+      return <ContactPage contact={screen.contact} version={contactsVersion} onBack={home} onAuthError={handleAuthError} />;
+    case "settings":
+      return user ? <SettingsPage user={user} onBack={home} onSecurityLog={() => setScreen({ name: "security" })} onSignOut={signOut} /> : null;
     case "security":
-      return <SecurityLogPage onBack={() => setScreen({ name: "home" })} onAuthError={handleAuthError} />;
+      return <SecurityLogPage onBack={() => setScreen({ name: "settings" })} onAuthError={handleAuthError} />;
     case "closed":
       return <ClosedPage closed={screen.closed} onSignIn={() => toLogin()} />;
+  }
+}
+
+/** Where the Android back button leads from each screen (null = leave the app). */
+function parentScreen(screen: Screen): Screen | null {
+  switch (screen.name) {
+    case "myId":
+    case "add":
+    case "contact":
+    case "settings":
+      return { name: "home" };
+    case "security":
+      return { name: "settings" };
+    case "signup":
+    case "pending":
+    case "adminReset":
+    case "code":
+      return { name: "login" };
+    case "passcode":
+      return { name: "code", challenge: screen.challenge };
+    default:
+      return null;
   }
 }

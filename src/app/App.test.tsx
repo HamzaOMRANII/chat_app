@@ -16,6 +16,7 @@ beforeEach(() => {
   routes = {
     "/api/auth/me": () => [401, { error: "Sign in to continue", code: "unauthorized" }],
     "/download/latest.json": () => [404, {}],
+    "/api/contacts": () => [200, { contacts: [], incoming: [], outgoing: [] }],
   };
   vi.stubGlobal(
     "fetch",
@@ -53,7 +54,7 @@ describe("H_CHAT sign-in flow", () => {
 
     "123456".split("").forEach((d, i) => type(`Digit ${i + 1}`, d));
     fireEvent.click(screen.getByRole("button", { name: "Verify and sign in" }));
-    expect(await screen.findByText("Hello, hamza")).toBeInTheDocument();
+    expect(await screen.findByText("No contacts yet")).toBeInTheDocument();
     expect(screen.getByText("Old laptop")).toBeInTheDocument();
   });
 
@@ -103,11 +104,85 @@ describe("H_CHAT sign-in flow", () => {
   it("shows where the account signed in when this device gets replaced", async () => {
     routes["/api/auth/me"] = () => [200, { user: { id: "1", username: "hamza", email: "hamza@example.com", mustReset: false }, lastLogin: null }];
     render(<App />);
-    expect(await screen.findByText("Hello, hamza")).toBeInTheDocument();
+    expect(await screen.findByText("No contacts yet")).toBeInTheDocument();
     await waitFor(() => expect(socketHandlers["session:revoked"]).toBeDefined());
     socketHandlers["session:revoked"]!({ reason: "new_login", by: { name: "Galaxy S23", city: "Paris", country: "FR" } });
     expect(await screen.findByText("You were signed in on another device")).toBeInTheDocument();
     expect(screen.getByText("Galaxy S23")).toBeInTheDocument();
     expect(screen.getByText("Paris, FR")).toBeInTheDocument();
+  });
+});
+
+describe("contacts", () => {
+  const signedIn = () => {
+    routes["/api/auth/me"] = () => [200, { user: { id: "1", username: "hamza", email: "hamza@example.com", mustReset: false } }];
+  };
+
+  it("lists contacts and requests, accepts a request, and reloads when the server says so", async () => {
+    signedIn();
+    let accepted = false;
+    routes["/api/contacts"] = () => [
+      200,
+      {
+        contacts: [
+          { id: "u1", username: "youssef.k", online: true, lastSeenAt: null, since: "2026-10-12T10:00:00Z", via: "id" },
+          ...(accepted ? [{ id: "u2", username: "sara.m", online: false, lastSeenAt: new Date(Date.now() - 2 * 3600_000).toISOString(), since: "2026-10-16T10:00:00Z", via: "id" }] : []),
+        ],
+        incoming: accepted ? [] : [{ id: "r1", username: "sara.m", at: new Date().toISOString() }],
+        outgoing: [{ id: "r2", username: "nadia.s", at: new Date().toISOString() }],
+      },
+    ];
+    routes["/api/contacts/requests/r1/accept"] = () => {
+      accepted = true;
+      return [200, { ok: true }];
+    };
+    render(<App />);
+    expect(await screen.findByText("requests · 2")).toBeInTheDocument();
+    expect(screen.getByText("youssef.k")).toBeInTheDocument();
+    expect(screen.getByText("1 online")).toBeInTheDocument();
+    expect(screen.getByText("you asked · waiting")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+    expect(await screen.findByText("last seen 2h ago")).toBeInTheDocument();
+    expect(screen.getByText("requests · 1")).toBeInTheDocument();
+
+    const before = calls.filter((c) => c.path === "/api/contacts").length;
+    socketHandlers["contacts:changed"]?.(undefined);
+    await waitFor(() => expect(calls.filter((c) => c.path === "/api/contacts").length).toBe(before + 1));
+  });
+
+  it("adds by ID and shows the same answer for any failure", async () => {
+    signedIn();
+    routes["/api/contacts/me"] = () => [200, { personalId: "HC-4KX7-92QM", invite: null, searchesLeft: 10 }];
+    routes["/api/contacts/add"] = (body) =>
+      body.personalId === "HC-7RT2-K4PW"
+        ? [200, { status: "requested", username: "leila.b", searchesLeft: 9 }]
+        : [404, { error: "No one found with this ID. Check it with the person.", code: "not_found", details: { searchesLeft: 8 } }];
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Add contact" }));
+    expect(await screen.findByText(/10 of 10 searches left/)).toBeInTheDocument();
+
+    type("Their ID", "HC-7RT2-K4PW");
+    fireEvent.click(screen.getByRole("button", { name: "Send request" }));
+    expect(await screen.findByText("leila.b")).toBeInTheDocument();
+    expect(screen.getByText(/9 of 10 searches left/)).toBeInTheDocument();
+
+    type("Their ID", "HC-2222-2222");
+    fireEvent.click(screen.getByRole("button", { name: "Send request" }));
+    expect(await screen.findByText("No one found with this ID. Check it with the person.")).toBeInTheDocument();
+    expect(screen.getByText(/8 of 10 searches left/)).toBeInTheDocument();
+  });
+
+  it("shows my ID with a QR code and creates an invite code", async () => {
+    signedIn();
+    routes["/api/contacts/me"] = () => [200, { personalId: "HC-4KX7-92QM", invite: null, searchesLeft: 10 }];
+    routes["/api/contacts/invite"] = () => [200, { code: "K7Q2-M9XA", expiresAt: new Date(Date.now() + 24 * 3600_000).toISOString() }];
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "My ID and invite codes" }));
+    expect(await screen.findByText("HC-4KX7-92QM")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "QR code of your ID" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create invite code" }));
+    expect(await screen.findByText("K7Q2-M9XA")).toBeInTheDocument();
+    expect(screen.getByText(/^2[34]h \d\dm left$/)).toBeInTheDocument();
   });
 });
