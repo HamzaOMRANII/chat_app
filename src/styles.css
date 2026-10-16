@@ -1,0 +1,98 @@
+@import "tailwindcss";
+@import "@fontsource/archivo/400.css";
+@import "@fontsource/archivo/600.css";
+@import "@fontsource/archivo/700.css";
+@import "@fontsource/archivo/800.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/700.css";
+
+/* H_CHAT design tokens (approved 2026-10-16): Gym surfaces × Pass mono, dark burgundy brand. */
+@theme {
+  --font-sans: "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-bg: #0a0b10;
+  --color-panel: #111219;
+  --color-raised: #181a24;
+  --color-sunken: #0d0e14;
+  --color-line: #262938;
+  --color-line-strong: #3a3e52;
+
+  --color-ink: #f3f4f8;
+  --color-ink-soft: #c9ccd8;
+  --color-dim: #9ea3b5;
+  --color-faint: #6e7387;
+
+  --color-brand: #7e2234;
+  --color-brand-hover: #942a3f;
+  --color-brand-deep: #6e1b2b;
+  --color-brand-stripe: #8c2a3f;
+  --color-accent: #c7707e;
+  --color-accent-soft: #e3a3ae;
+  --color-link: #d99aa5;
+
+  --color-live: #7fdce8;
+  --color-live-line: #3fa9b8;
+  --color-keep: #f2c46b;
+  --color-keep-line: #c99a3e;
+  --color-auto: #9aaeff;
+  --color-auto-line: #5672e0;
+
+  --color-ok: #7fe3b6;
+  --color-online: #5fd9a4;
+  --color-danger: #ff7a7a;
+  --color-danger-ink: #ff9a9a;
+
+  --radius-field: 12px;
+  --radius-control: 14px;
+  --radius-card: 20px;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: var(--color-brand);
+    color: #fff;
+  }
+  :where(a, button, input, select, textarea):focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+  }
+  a {
+    color: var(--color-link);
+  }
+  a:hover {
+    color: var(--color-ink);
+  }
+}
+
+@utility bg-grid {
+  background-image:
+    linear-gradient(#ffffff07 1px, transparent 1px),
+    linear-gradient(90deg, #ffffff07 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* "// label" from the Pass manager */
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-dim);
+  &::before {
+    content: "// ";
+    color: var(--color-faint);
+  }
+}
