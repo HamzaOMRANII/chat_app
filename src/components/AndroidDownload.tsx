@@ -16,7 +16,7 @@ export function AndroidDownload() {
 
   return (
     <section className="flex flex-col gap-3 rounded-2xl border border-dashed border-line-strong px-[18px] py-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <svg
           viewBox="0 0 24 24"
           width="22"
@@ -32,7 +32,7 @@ export function AndroidDownload() {
           <rect x="6" y="2" width="12" height="20" rx="2.5" />
           <path d="M12 7v7M9 11l3 3 3-3M10 18h4" />
         </svg>
-        <div className="flex min-w-0 grow flex-col gap-0.5">
+        <div className="flex min-w-[10rem] flex-1 flex-col gap-0.5">
           <h2 className="m-0 text-[14.5px] font-bold">Android app</h2>
           <p className="m-0 font-mono text-[11px] text-dim">
             h_chat.apk · v{release.version} · {formatSize(release.size)}
@@ -42,7 +42,7 @@ export function AndroidDownload() {
           // Versioned file name: a new release always gets a new URL, so no cache can serve an old APK
           href={serverUrl(`/download/${release.file}`)}
           download
-          className="inline-flex min-h-11 items-center rounded-field border border-line-strong bg-raised px-3.5 text-[13.5px] font-bold text-ink no-underline"
+          className="ml-auto inline-flex min-h-11 items-center rounded-field border border-line-strong bg-raised px-3.5 text-[13.5px] font-bold text-ink no-underline"
         >
           Download
         </a>

@@ -9,6 +9,11 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
   },
   backgroundColor: "#0A0B10",
+  plugins: {
+    // Android keeps the app between the status bar and the navigation bar (index.html has no viewport-fit=cover),
+    // with light icons on the dark background.
+    SystemBars: { style: "DARK" },
+  },
 };
 
 export default config;

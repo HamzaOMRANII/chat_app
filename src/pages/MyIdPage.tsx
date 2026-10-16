@@ -56,7 +56,7 @@ export function MyIdPage({ onBack, onAuthError }: { onBack: () => void; onAuthEr
           {me ? <QrCode text={addContactLink(me.personalId)} label="QR code of your ID" /> : <span className="size-[192px] rounded-[14px] bg-raised" aria-hidden="true" />}
           <div className="flex flex-col items-center gap-1">
             <p className="m-0 font-mono text-[10.5px] uppercase tracking-[0.16em] text-dim">personal ID</p>
-            <p className="m-0 font-mono text-[26px] font-bold tracking-[0.08em]">{me?.personalId ?? "…"}</p>
+            <p className="m-0 whitespace-nowrap font-mono text-[min(26px,7vw)] font-bold tracking-[0.08em]">{me?.personalId ?? "…"}</p>
           </div>
           <div className="flex w-full gap-2">
             <button type="button" disabled={!me} onClick={() => copy(me!.personalId, "ID")} className={secondary}>
