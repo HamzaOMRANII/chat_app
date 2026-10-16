@@ -6,6 +6,10 @@ import { AdminResetPage } from "../pages/AdminResetPage";
 import { ClosedPage } from "../pages/ClosedPage";
 import { CodePage } from "../pages/CodePage";
 import { AddContactPage } from "../pages/AddContactPage";
+import { ChatPage } from "../pages/ChatPage";
+import { SafetyPage } from "../pages/SafetyPage";
+import { prepareDevice } from "../lib/chats";
+import { CHAT_EVENTS, live } from "../lib/live";
 import { ContactPage } from "../pages/ContactPage";
 import { ContactsPage } from "../pages/ContactsPage";
 import { MyIdPage } from "../pages/MyIdPage";
@@ -46,7 +50,7 @@ function keepPendingAdd() {
 }
 keepPendingAdd();
 
-const SIGNED_IN_SCREENS = new Set<Screen["name"]>(["home", "myId", "add", "contact", "settings", "security"]);
+const SIGNED_IN_SCREENS = new Set<Screen["name"]>(["home", "myId", "add", "contact", "settings", "security", "chat", "safety"]);
 
 export function App() {
   const [screen, setScreen] = useState<Screen>({ name: "loading" });
@@ -109,15 +113,30 @@ export function App() {
       });
     });
     socket.on("contacts:changed", () => setContactsVersion((v) => v + 1));
+    // Chat events go to the open screens; anything that changes the list reloads it
+    for (const event of CHAT_EVENTS) {
+      socket.on(event, (payload: unknown) => {
+        live.dispatch(event, payload);
+        if (event !== "typing" && event !== "msg:status") setContactsVersion((v) => v + 1);
+      });
+    }
+    live.attach(socket);
     // Missed events while offline: reload on every reconnect
     socket.on("connect", () => setContactsVersion((v) => v + 1));
     socket.on("connect_error", (err: Error & { data?: Partial<Closed> }) => {
       if (err.message === "unauthorized" && err.data?.reason) showClosed({ code: "session_revoked", ...err.data });
     });
     return () => {
+      live.attach(null);
       socket.close();
     };
   }, [signedIn, showClosed]);
+
+  // Once per sign-in: this device's encryption identity, and its keys for every open chat
+  const userId = user?.id;
+  useEffect(() => {
+    if (signedIn && userId) void prepareDevice(userId).catch(() => {});
+  }, [signedIn, userId]);
 
   async function signOut() {
     await api("/api/auth/logout", { method: "POST" }).catch(() => {});
@@ -192,6 +211,7 @@ export function App() {
           onMyId={() => setScreen({ name: "myId" })}
           onAdd={() => setScreen({ name: "add" })}
           onOpen={(contact) => setScreen({ name: "contact", contact })}
+          onOpenChat={(chatId) => setScreen({ name: "chat", chatId })}
           onSettings={() => setScreen({ name: "settings" })}
           onGetApp={() => setScreen({ name: "settings", focus: "app" })}
           onAuthError={handleAuthError}
@@ -202,7 +222,29 @@ export function App() {
     case "add":
       return <AddContactPage initialId={screen.initialId} onBack={home} onAdded={(contact) => setScreen({ name: "contact", contact })} onAuthError={handleAuthError} />;
     case "contact":
-      return <ContactPage contact={screen.contact} version={contactsVersion} onBack={home} onAuthError={handleAuthError} />;
+      return user ? (
+        <ContactPage
+          contact={screen.contact}
+          userId={user.id}
+          version={contactsVersion}
+          onBack={home}
+          onChat={(chatId) => setScreen({ name: "chat", chatId })}
+          onAuthError={handleAuthError}
+        />
+      ) : null;
+    case "chat":
+      return user ? (
+        <ChatPage
+          key={screen.chatId}
+          chatId={screen.chatId}
+          userId={user.id}
+          onBack={home}
+          onSafety={(chat) => setScreen({ name: "safety", chat })}
+          onAuthError={handleAuthError}
+        />
+      ) : null;
+    case "safety":
+      return user ? <SafetyPage chat={screen.chat} userId={user.id} onBack={() => setScreen({ name: "chat", chatId: screen.chat.id })} /> : null;
     case "settings":
       return user ? <SettingsPage user={user} focusApp={screen.focus === "app"} onBack={home} onSecurityLog={() => setScreen({ name: "security" })} onSignOut={signOut} /> : null;
     case "security":
@@ -219,7 +261,10 @@ function parentScreen(screen: Screen): Screen | null {
     case "add":
     case "contact":
     case "settings":
+    case "chat":
       return { name: "home" };
+    case "safety":
+      return { name: "chat", chatId: screen.chat.id };
     case "security":
       return { name: "settings" };
     case "signup":

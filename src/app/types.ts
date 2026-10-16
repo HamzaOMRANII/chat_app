@@ -1,3 +1,4 @@
+import type { Chat } from "../lib/chats";
 import type { Contact } from "../lib/contacts";
 
 export type User = { id: string; username: string; email: string; mustReset: boolean };
@@ -28,6 +29,8 @@ export type Screen =
   | { name: "add"; initialId?: string }
   | { name: "contact"; contact: Contact }
   | { name: "settings"; focus?: "app" }
+  | { name: "chat"; chatId: string }
+  | { name: "safety"; chat: Chat }
   | { name: "security" }
   | { name: "closed"; closed: Closed };
 
