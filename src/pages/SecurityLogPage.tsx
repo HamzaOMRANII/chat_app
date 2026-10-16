@@ -50,11 +50,11 @@ export function SecurityLogPage({ onBack, onAuthError }: { onBack: () => void; o
         {data?.current ? (
           <section className="flex flex-col gap-2 rounded-2xl border border-line-strong bg-raised px-4 py-3.5">
             <p className="eyebrow m-0">this device</p>
-            <p className="m-0 flex items-center gap-2.5 text-[15.5px] font-bold">
+            <p className="m-0 flex min-w-0 items-center gap-2.5 text-[15.5px] font-bold [overflow-wrap:anywhere]">
               <span className="size-2 rounded-full bg-online" aria-hidden="true" />
               {data.current.name}
             </p>
-            <p className="m-0 font-mono text-xs text-ink-soft">
+            <p className="m-0 font-mono text-xs text-ink-soft [overflow-wrap:anywhere]">
               {[data.current.platform === "android" ? `Android ${data.current.osVersion ?? ""}`.trim() : data.current.os, data.current.appVersion && `app ${data.current.appVersion}`]
                 .filter(Boolean)
                 .join(" · ")}
@@ -70,14 +70,14 @@ export function SecurityLogPage({ onBack, onAuthError }: { onBack: () => void; o
             return (
               <li key={e._id} className={`flex gap-3 px-3.5 py-3 ${i ? "border-t border-line" : ""}`}>
                 <span className={`mt-1.5 size-2 shrink-0 rounded-full ${DOT[tone]}`} aria-hidden="true" />
-                <span className="flex grow flex-col gap-0.5">
-                  <span className="text-sm font-bold">{label}</span>
-                  <span className="text-[12.5px] text-dim">
+                <span className="flex min-w-0 grow flex-col gap-0.5">
+                  <span className="text-sm font-bold [overflow-wrap:anywhere]">{label}</span>
+                  <span className="text-[12.5px] text-dim [overflow-wrap:anywhere]">
                     {e.deviceName ?? "unknown device"} · {place(e.city, e.country)}
-                    {e.ip ? ` · ${e.ip}` : ""}
                   </span>
+                  {e.ip ? <span className="font-mono text-[11px] text-faint [overflow-wrap:anywhere]">{e.ip}</span> : null}
                 </span>
-                <span className="shrink-0 font-mono text-[11px] text-faint">{when(e.at)}</span>
+                <span className="shrink-0 whitespace-nowrap text-right font-mono text-[11px] text-faint">{when(e.at)}</span>
               </li>
             );
           })}
