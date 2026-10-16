@@ -2,7 +2,7 @@ import jsQR from "jsqr";
 import { useEffect, useRef, useState } from "react";
 
 /** Browser camera QR reader (the web app; the APK uses Google's scanner). Calls onResult once with the text read. */
-export function QrScanner({ onResult, onClose }: { onResult: (text: string) => void; onClose: () => void }) {
+export function QrScanner({ onResult, onClose, onUpload }: { onResult: (text: string) => void; onClose: () => void; onUpload: () => void }) {
   const video = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
 
@@ -67,6 +67,11 @@ export function QrScanner({ onResult, onClose }: { onResult: (text: string) => v
             <span aria-hidden="true" className="absolute size-[min(70vw,300px)] rounded-3xl border-2 border-accent shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]" />
           </>
         )}
+      </div>
+      <div className="px-4 pb-6 pt-3">
+        <button type="button" onClick={onUpload} className="min-h-12 w-full rounded-control border border-line-strong bg-panel text-[14.5px] font-semibold text-ink">
+          Can't scan? Upload a QR image
+        </button>
       </div>
     </div>
   );

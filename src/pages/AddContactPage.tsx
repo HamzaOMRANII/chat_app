@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { PageHeader } from "../components/PageHeader";
 import { Notice } from "../components/Screen";
 import { api, ApiError } from "../lib/api";
 import { QrScanner } from "../components/QrScanner";
 import { personalIdFromScan, type Contact } from "../lib/contacts";
 import { canScanQr, scanQr } from "../lib/native";
+import { readQrFromImage } from "../lib/qrImage";
 import { isNativeApp } from "../lib/platform";
 
 type Mode = "id" | "invite";
@@ -22,6 +23,8 @@ export function AddContactPage({ initialId, onBack, onAdded, onAuthError }: Prop
   const [mode, setMode] = useState<Mode>("id");
   const [value, setValue] = useState(initialId ?? "");
   const [webScanner, setWebScanner] = useState(false);
+  const [reading, setReading] = useState(false);
+  const imageInput = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
   const [sentTo, setSentTo] = useState("");
   const [searchesLeft, setSearchesLeft] = useState<number | null>(null);
@@ -72,6 +75,23 @@ export function AddContactPage({ initialId, onBack, onAdded, onAuthError }: Prop
     },
     [],
   );
+
+  // A QR code saved as a picture (sent by the person, a screenshot of their My ID…)
+  function pickImage() {
+    setWebScanner(false);
+    setError("");
+    imageInput.current?.click();
+  }
+  async function onImage(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // the same picture can be picked again
+    if (!file) return;
+    setReading(true);
+    const text = await readQrFromImage(file);
+    setReading(false);
+    if (text) applyScan(text);
+    else setError("No QR code found in this picture. Try a sharper or closer image, or type the ID.");
+  }
 
   // The scanned ID lands in the field; the person checks it and presses Send request.
   async function scan() {
@@ -155,24 +175,42 @@ export function AddContactPage({ initialId, onBack, onAdded, onAuthError }: Prop
           {mode === "id" ? "Send request" : "Add contact"}
         </button>
 
-        {canScanQr ? (
+        {mode === "id" ? (
           <>
             <div className="flex items-center gap-3 font-mono text-[11px] text-faint" aria-hidden="true">
               <span className="h-px grow bg-line" />
               or
               <span className="h-px grow bg-line" />
             </div>
-            <button
-              type="button"
-              onClick={scan}
-              disabled={busy || searchesLeft === 0}
-              className="flex min-h-[52px] items-center justify-center gap-2.5 rounded-[14px] border border-line-strong bg-panel text-[15px] font-semibold text-ink disabled:opacity-50"
-            >
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3M7 12h10" />
-              </svg>
-              Scan their QR code
-            </button>
+            <div className="flex flex-col gap-2">
+              {canScanQr ? (
+                <button
+                  type="button"
+                  onClick={scan}
+                  disabled={busy || searchesLeft === 0}
+                  className="flex min-h-[52px] items-center justify-center gap-2.5 rounded-[14px] border border-line-strong bg-panel px-3 text-[15px] font-semibold text-ink disabled:opacity-50"
+                >
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3M7 12h10" />
+                  </svg>
+                  Scan QR code
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={pickImage}
+                disabled={busy || reading || searchesLeft === 0}
+                className="flex min-h-[52px] items-center justify-center gap-2.5 rounded-[14px] border border-line-strong bg-panel px-3 text-[15px] font-semibold text-ink disabled:opacity-50"
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="3" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <path d="m21 15-5-5L5 21" />
+                </svg>
+                {reading ? "Reading…" : "Upload QR image"}
+              </button>
+            </div>
+            <input ref={imageInput} type="file" accept="image/*" onChange={onImage} className="hidden" aria-hidden="true" tabIndex={-1} />
           </>
         ) : null}
 
@@ -183,7 +221,7 @@ export function AddContactPage({ initialId, onBack, onAdded, onAuthError }: Prop
           {mode === "invite" ? " An invite code connects you at once, no request." : ""}
         </p>
       </form>
-      {webScanner ? <QrScanner onResult={applyScan} onClose={() => setWebScanner(false)} /> : null}
+      {webScanner ? <QrScanner onResult={applyScan} onClose={() => setWebScanner(false)} onUpload={pickImage} /> : null}
     </main>
   );
 }
