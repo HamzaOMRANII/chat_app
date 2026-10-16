@@ -9,6 +9,11 @@ if (keystorePropsFile.exists()) {
 
 android {
     namespace = "com.omranisystems.hchat"
+    // QR scanning uses Google's code scanner (Play services). The plugin's on-device engine, used only by
+    // startScan/readBarcodesFromImage which H_CHAT never calls, would add ~20 MB: leave it out.
+    packaging {
+        jniLibs { excludes += ["**/libbarhopper_v3.so"] }
+    }
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.omranisystems.hchat"
@@ -21,7 +26,8 @@ android {
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
-            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+            // + the unused scanner engine's models (see packaging above)
+            ignoreAssetsPattern = '!mlkit_barcode_models:!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
     signingConfigs {

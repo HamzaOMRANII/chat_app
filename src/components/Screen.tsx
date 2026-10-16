@@ -26,11 +26,12 @@ export function Card({ children, className = "" }: { children: ReactNode; classN
   );
 }
 
-type Tone = "error" | "warning" | "info";
+type Tone = "error" | "warning" | "info" | "ok";
 const tones: Record<Tone, string> = {
   error: "border-dashed border-danger text-[#FFC9C9]",
   warning: "border-keep-line bg-keep/10 text-[#F3E3BF]",
   info: "border-line-strong bg-sunken text-ink-soft",
+  ok: "border-online/50 bg-online/10 text-[#C9F2DF]",
 };
 
 export function Notice({ tone = "info", children }: { tone?: Tone; children: ReactNode }) {
