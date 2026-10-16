@@ -193,6 +193,7 @@ export function App() {
           onAdd={() => setScreen({ name: "add" })}
           onOpen={(contact) => setScreen({ name: "contact", contact })}
           onSettings={() => setScreen({ name: "settings" })}
+          onGetApp={() => setScreen({ name: "settings", focus: "app" })}
           onAuthError={handleAuthError}
         />
       );
@@ -203,7 +204,7 @@ export function App() {
     case "contact":
       return <ContactPage contact={screen.contact} version={contactsVersion} onBack={home} onAuthError={handleAuthError} />;
     case "settings":
-      return user ? <SettingsPage user={user} onBack={home} onSecurityLog={() => setScreen({ name: "security" })} onSignOut={signOut} /> : null;
+      return user ? <SettingsPage user={user} focusApp={screen.focus === "app"} onBack={home} onSecurityLog={() => setScreen({ name: "security" })} onSignOut={signOut} /> : null;
     case "security":
       return <SecurityLogPage onBack={() => setScreen({ name: "settings" })} onAuthError={handleAuthError} />;
     case "closed":

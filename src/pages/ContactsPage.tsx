@@ -3,6 +3,7 @@ import { Logo, Wordmark } from "../components/Logo";
 import { Avatar } from "../components/PageHeader";
 import { Notice } from "../components/Screen";
 import { api } from "../lib/api";
+import { isNativeApp } from "../lib/platform";
 import { ago, lastSeen, type Contact, type ContactList } from "../lib/contacts";
 import { place, when, type LastLogin } from "../app/types";
 
@@ -14,12 +15,14 @@ type Props = {
   onAdd: () => void;
   onOpen: (contact: Contact) => void;
   onSettings: () => void;
+  /** Web only: Settings, where the Android app download is. */
+  onGetApp: () => void;
   onAuthError: (err: unknown) => boolean;
 };
 
 const iconButton = "grid size-11 place-items-center rounded-field border border-line bg-panel text-ink";
 
-export function ContactsPage({ lastLogin, version, onMyId, onAdd, onOpen, onSettings, onAuthError }: Props) {
+export function ContactsPage({ lastLogin, version, onMyId, onAdd, onOpen, onSettings, onGetApp, onAuthError }: Props) {
   const [list, setList] = useState<ContactList | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -58,6 +61,14 @@ export function ContactsPage({ lastLogin, version, onMyId, onAdd, onOpen, onSett
         <span className="grow text-xl">
           <Wordmark />
         </span>
+        {isNativeApp ? null : (
+          <button type="button" onClick={onGetApp} aria-label="Get the Android app" title="Get the Android app" className={iconButton}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="6" y="2" width="12" height="20" rx="2.5" />
+              <path d="M12 7v7M9 11l3 3 3-3M10 18h4" />
+            </svg>
+          </button>
+        )}
         <button type="button" onClick={onMyId} aria-label="My ID and invite codes" className={iconButton}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <rect x="3" y="3" width="7" height="7" rx="1" />

@@ -27,7 +27,7 @@ export type Screen =
   | { name: "myId" }
   | { name: "add"; initialId?: string }
   | { name: "contact"; contact: Contact }
-  | { name: "settings" }
+  | { name: "settings"; focus?: "app" }
   | { name: "security" }
   | { name: "closed"; closed: Closed };
 

@@ -210,3 +210,14 @@ describe("scanned text", () => {
     expect(personalIdFromScan("hello")).toBeNull();
   });
 });
+
+describe("Android app download", () => {
+  it("is one tap away in the signed-in web app", async () => {
+    routes["/api/auth/me"] = () => [200, { user: { id: "1", username: "hamza", email: "hamza@example.com", mustReset: false } }];
+    routes["/download/latest.json"] = () => [200, { version: "0.3.2", versionCode: 302, file: "h_chat-0.3.2.apk", size: 5_800_000, sha256: "ab".repeat(32), date: "2026-10-16" }];
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Get the Android app" }));
+    expect(await screen.findByText(/v0\.3\.2/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/download/h_chat-0.3.2.apk");
+  });
+});
