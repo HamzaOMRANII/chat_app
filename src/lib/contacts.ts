@@ -31,5 +31,14 @@ export function timeLeft(iso: string, now = Date.now()) {
   return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m left`;
 }
 
-/** A scanned QR code holds the plain personal ID. */
-export const looksLikePersonalId = (text: string) => /^HC-?[2-9A-Z]{4}-?[2-9A-Z]{4}$/i.test(text.trim());
+/**
+ * What the My ID QR code holds: a link that opens "Add contact" with the ID filled in, so a phone's own camera
+ * app works too. In-app scans read the ID from it.
+ */
+export const addContactLink = (personalId: string) => `https://chat.omranisystems.com/#add=${personalId}`;
+
+/** The personal ID in a scanned text (the link above, or a plain ID), or null. */
+export function personalIdFromScan(text: string) {
+  const match = text.trim().match(/(?:^|#add=)(HC-?[2-9A-Z]{4}-?[2-9A-Z]{4})$/i);
+  return match ? match[1]!.toUpperCase() : null;
+}

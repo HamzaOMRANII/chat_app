@@ -27,6 +27,9 @@ export async function shareText(title: string, text: string) {
   }
 }
 
+/** In-app QR scanning: Google's scanner in the APK, the camera through the browser on the web. */
+export const canScanQr = isNativeApp || typeof navigator.mediaDevices?.getUserMedia === "function";
+
 /**
  * QR scan with Google's code scanner (Play services): the camera opens in Google's own screen,
  * so H_CHAT needs no camera permission. APK only. Resolves to the text read, or null when cancelled.

@@ -16,9 +16,36 @@ import { ResetPage } from "../pages/ResetPage";
 import { SecurityLogPage } from "../pages/SecurityLogPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { SignUpPage } from "../pages/SignUpPage";
+import { personalIdFromScan } from "../lib/contacts";
 import type { Closed, LastLogin, Screen, User } from "./types";
 
 const CLOSED_CODES = new Set(["session_revoked", "session_closed", "account_unavailable"]);
+// A My ID QR code read by a phone's camera app opens chat.omranisystems.com/#add=HC-…: keep the ID through sign-in.
+const PENDING_ADD = "hc.pendingAdd";
+function takePendingAdd() {
+  try {
+    const fromLink = personalIdFromScan(decodeURIComponent(location.hash));
+    if (fromLink) {
+      sessionStorage.setItem(PENDING_ADD, fromLink);
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+    const id = sessionStorage.getItem(PENDING_ADD);
+    sessionStorage.removeItem(PENDING_ADD);
+    return id ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+function keepPendingAdd() {
+  try {
+    const id = personalIdFromScan(decodeURIComponent(location.hash));
+    if (id) sessionStorage.setItem(PENDING_ADD, id);
+  } catch {
+    /* storage unavailable */
+  }
+}
+keepPendingAdd();
+
 const SIGNED_IN_SCREENS = new Set<Screen["name"]>(["home", "myId", "add", "contact", "settings", "security"]);
 
 export function App() {
@@ -48,7 +75,9 @@ export function App() {
   const enter = useCallback((u: User, last: LastLogin = null) => {
     setUser(u);
     setLastLogin(last);
-    setScreen(u.mustReset ? { name: "reset" } : { name: "home" });
+    if (u.mustReset) return setScreen({ name: "reset" });
+    const pendingAdd = takePendingAdd();
+    setScreen(pendingAdd ? { name: "add", initialId: pendingAdd } : { name: "home" });
   }, []);
 
   // Restore an existing session on start
@@ -170,7 +199,7 @@ export function App() {
     case "myId":
       return <MyIdPage onBack={home} onAuthError={handleAuthError} />;
     case "add":
-      return <AddContactPage onBack={home} onAdded={(contact) => setScreen({ name: "contact", contact })} onAuthError={handleAuthError} />;
+      return <AddContactPage initialId={screen.initialId} onBack={home} onAdded={(contact) => setScreen({ name: "contact", contact })} onAuthError={handleAuthError} />;
     case "contact":
       return <ContactPage contact={screen.contact} version={contactsVersion} onBack={home} onAuthError={handleAuthError} />;
     case "settings":

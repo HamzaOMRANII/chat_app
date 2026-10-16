@@ -3,7 +3,7 @@ import { PageHeader } from "../components/PageHeader";
 import { QrCode } from "../components/QrCode";
 import { Notice } from "../components/Screen";
 import { api } from "../lib/api";
-import { timeLeft, type MyId } from "../lib/contacts";
+import { addContactLink, timeLeft, type MyId } from "../lib/contacts";
 import { canShare, copyText, shareText } from "../lib/native";
 
 const secondary = "min-h-11 flex-1 rounded-field border border-line-strong bg-raised text-sm font-semibold text-ink disabled:opacity-50";
@@ -53,7 +53,7 @@ export function MyIdPage({ onBack, onAuthError }: { onBack: () => void; onAuthEr
         {status ? <p role="status" className="sr-only">{status}</p> : null}
 
         <section className="flex flex-col items-center gap-3.5 rounded-[20px] border border-line-strong bg-panel px-4 pb-4 pt-5">
-          {me ? <QrCode text={me.personalId} label="QR code of your ID" /> : <span className="size-[192px] rounded-[14px] bg-raised" aria-hidden="true" />}
+          {me ? <QrCode text={addContactLink(me.personalId)} label="QR code of your ID" /> : <span className="size-[192px] rounded-[14px] bg-raised" aria-hidden="true" />}
           <div className="flex flex-col items-center gap-1">
             <p className="m-0 font-mono text-[10.5px] uppercase tracking-[0.16em] text-dim">personal ID</p>
             <p className="m-0 font-mono text-[26px] font-bold tracking-[0.08em]">{me?.personalId ?? "…"}</p>

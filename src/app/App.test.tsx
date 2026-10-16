@@ -186,3 +186,27 @@ describe("contacts", () => {
     expect(screen.getByText(/^2[34]h \d\dm left$/)).toBeInTheDocument();
   });
 });
+
+describe("QR link", () => {
+  it("opens Add contact with the ID from a scanned My ID link, after sign-in", async () => {
+    routes["/api/auth/me"] = () => [200, { user: { id: "1", username: "hamza", email: "hamza@example.com", mustReset: false } }];
+    routes["/api/contacts/me"] = () => [200, { personalId: "HC-4KX7-92QM", invite: null, searchesLeft: 10 }];
+    history.replaceState(null, "", "/#add=HC-7RT2-K4PW");
+    vi.resetModules();
+    const { App: FreshApp } = await import("./App");
+    render(<FreshApp />);
+    expect(await screen.findByDisplayValue("HC-7RT2-K4PW")).toBeInTheDocument();
+    expect(location.hash).toBe("");
+    expect(screen.getByText(/Check the ID from the QR code/)).toBeInTheDocument();
+  });
+});
+
+describe("scanned text", () => {
+  it("reads the ID from the link or a plain ID, and nothing else", async () => {
+    const { personalIdFromScan, addContactLink } = await import("../lib/contacts");
+    expect(personalIdFromScan(addContactLink("HC-4KX7-92QM"))).toBe("HC-4KX7-92QM");
+    expect(personalIdFromScan("hc-4kx7-92qm")).toBe("HC-4KX7-92QM");
+    expect(personalIdFromScan("https://evil.example/#add=HC-4KX7-92QM-extra")).toBeNull();
+    expect(personalIdFromScan("hello")).toBeNull();
+  });
+});

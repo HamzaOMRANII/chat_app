@@ -1,19 +1,27 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { PageHeader } from "../components/PageHeader";
 import { Notice } from "../components/Screen";
 import { api, ApiError } from "../lib/api";
-import { looksLikePersonalId, type Contact } from "../lib/contacts";
-import { scanQr } from "../lib/native";
+import { QrScanner } from "../components/QrScanner";
+import { personalIdFromScan, type Contact } from "../lib/contacts";
+import { canScanQr, scanQr } from "../lib/native";
 import { isNativeApp } from "../lib/platform";
 
 type Mode = "id" | "invite";
 type AddResult = { status: "requested"; username: string; searchesLeft: number } | { status: "contact"; contact: Contact; searchesLeft: number };
 
-type Props = { onBack: () => void; onAdded: (contact: Contact) => void; onAuthError: (err: unknown) => boolean };
+type Props = {
+  /** Filled in from a scanned link (#add=…); the person still presses Send. */
+  initialId?: string;
+  onBack: () => void;
+  onAdded: (contact: Contact) => void;
+  onAuthError: (err: unknown) => boolean;
+};
 
-export function AddContactPage({ onBack, onAdded, onAuthError }: Props) {
+export function AddContactPage({ initialId, onBack, onAdded, onAuthError }: Props) {
   const [mode, setMode] = useState<Mode>("id");
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(initialId ?? "");
+  const [webScanner, setWebScanner] = useState(false);
   const [error, setError] = useState("");
   const [sentTo, setSentTo] = useState("");
   const [searchesLeft, setSearchesLeft] = useState<number | null>(null);
@@ -49,23 +57,32 @@ export function AddContactPage({ onBack, onAdded, onAuthError }: Props) {
     if (value.trim()) void add(value.trim(), mode);
   }
 
+  const applyScan = useCallback(
+    (text: string) => {
+      setWebScanner(false);
+      const id = personalIdFromScan(text);
+      if (!id) {
+        setError("This QR code isn't an H_CHAT ID.");
+        return;
+      }
+      setMode("id");
+      setValue(id);
+      setError("");
+      setSentTo("");
+    },
+    [],
+  );
+
+  // The scanned ID lands in the field; the person checks it and presses Send request.
   async function scan() {
     setError("");
-    let text: string | null;
+    if (!isNativeApp) return setWebScanner(true);
     try {
-      text = await scanQr();
+      const text = await scanQr();
+      if (text) applyScan(text);
     } catch (err) {
       setError(err instanceof Error ? err.message : "The QR scanner isn't available on this phone. Type the ID instead.");
-      return;
     }
-    if (!text) return;
-    if (!looksLikePersonalId(text)) {
-      setError("This QR code isn't an H_CHAT ID.");
-      return;
-    }
-    setMode("id");
-    setValue(text.trim().toUpperCase());
-    await add(text.trim(), "id");
   }
 
   const tab = (m: Mode, label: string) => (
@@ -93,21 +110,39 @@ export function AddContactPage({ onBack, onAdded, onAuthError }: Props) {
           {tab("invite", "Invite code")}
         </div>
 
-        <label className="flex flex-col gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-dim">
-          {mode === "id" ? "Their ID" : "Their invite code"}
-          <input
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            placeholder={mode === "id" ? "HC-XXXX-XXXX" : "XXXX-XXXX"}
-            autoCapitalize="characters"
-            autoComplete="off"
-            spellCheck={false}
-            maxLength={20}
-            required
-            aria-invalid={Boolean(error)}
-            className={`min-h-[54px] rounded-[14px] border bg-panel px-4 font-mono text-xl normal-case tracking-[0.1em] text-ink outline-none placeholder:text-faint focus:border-accent ${error ? "border-dashed border-danger" : "border-line-strong"}`}
-          />
-        </label>
+        <div className="flex flex-col gap-2">
+          <label htmlFor="contact-code" className="font-mono text-[11px] uppercase tracking-[0.12em] text-dim">
+            {mode === "id" ? "Their ID" : "Their invite code"}
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="contact-code"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={mode === "id" ? "HC-XXXX-XXXX" : "XXXX-XXXX"}
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              maxLength={20}
+              required
+              aria-invalid={Boolean(error)}
+              className={`min-h-[54px] min-w-0 grow rounded-[14px] border bg-panel px-4 font-mono text-xl tracking-[0.1em] text-ink outline-none placeholder:text-faint focus:border-accent ${error ? "border-dashed border-danger" : "border-line-strong"}`}
+            />
+            {mode === "id" && canScanQr ? (
+              <button
+                type="button"
+                onClick={scan}
+                aria-label="Scan QR code"
+                title="Scan QR code"
+                className="grid size-[54px] shrink-0 place-items-center rounded-[14px] border border-line-strong bg-raised text-ink hover:border-accent"
+              >
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3M7 12h10" />
+                </svg>
+              </button>
+            ) : null}
+          </div>
+        </div>
 
         {error ? <Notice tone="error">{error}</Notice> : null}
         {sentTo ? (
@@ -120,7 +155,7 @@ export function AddContactPage({ onBack, onAdded, onAuthError }: Props) {
           {mode === "id" ? "Send request" : "Add contact"}
         </button>
 
-        {isNativeApp ? (
+        {canScanQr ? (
           <>
             <div className="flex items-center gap-3 font-mono text-[11px] text-faint" aria-hidden="true">
               <span className="h-px grow bg-line" />
@@ -143,10 +178,12 @@ export function AddContactPage({ onBack, onAdded, onAuthError }: Props) {
 
         <p className="m-0 text-[12.5px] leading-normal text-faint">
           {searchesLeft === null ? "" : `${searchesLeft} of 10 searches left this hour. `}
+          {initialId ? "Check the ID from the QR code, then send the request. " : ""}
           For your safety, the app never says why a search failed.
           {mode === "invite" ? " An invite code connects you at once, no request." : ""}
         </p>
       </form>
+      {webScanner ? <QrScanner onResult={applyScan} onClose={() => setWebScanner(false)} /> : null}
     </main>
   );
 }
