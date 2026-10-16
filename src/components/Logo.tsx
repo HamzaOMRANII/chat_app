@@ -5,10 +5,13 @@ type LogoProps = {
   className?: string;
 };
 
-/** The H_CHAT mark: the original Chat logo from omranisystems.com, recoloured dark burgundy. */
+/**
+ * The H_CHAT mark: the original Chat logo from omranisystems.com, recoloured dark burgundy.
+ * The viewBox is centred on the ring (60,60) so the mark sits visually centred.
+ */
 export function Logo({ size = 64, background = "#0A0B10", className }: LogoProps) {
   return (
-    <svg viewBox="4 4 124 124" width={size} height={size} aria-hidden="true" className={className}>
+    <svg viewBox="-4 -4 128 128" width={size} height={size} aria-hidden="true" className={className}>
       <circle cx="60" cy="60" r="46" fill="none" stroke="#FFFFFF" strokeWidth="9" />
       <path
         d="M116 32H52Q40 32 40 44V48Q40 60 52 60H68Q80 60 80 72V76Q80 88 68 88H4"
