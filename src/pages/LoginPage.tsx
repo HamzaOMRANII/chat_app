@@ -84,7 +84,8 @@ function AndroidDownload() {
           </p>
         </div>
         <a
-          href={serverUrl("/download/h_chat.apk")}
+          // Versioned file name: a new release always gets a new URL, so no cache can serve an old APK
+          href={serverUrl(`/download/${release.file}`)}
           download
           className="inline-flex min-h-11 items-center rounded-field border border-line-strong bg-raised px-3.5 text-[13.5px] font-bold text-ink no-underline"
         >

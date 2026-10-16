@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Builds a signed release APK and publishes it to /projects/mobile_builds:
+// Builds a signed release APK and publishes it to /projects/mobile_builds/h_chat:
 //   h_chat-<version>.apk   every version (the newest KEEP are kept)
 //   h_chat.apk             copy of the newest (linked from the login page)
 //   latest.json            version info read by the web app and the APK's update check
@@ -13,7 +13,7 @@ import { join, resolve } from "node:path";
 
 const KEEP = 5;
 const root = resolve(import.meta.dirname, "..");
-const outDir = process.env.MOBILE_BUILDS_DIR ?? "/projects/mobile_builds";
+const outDir = process.env.MOBILE_BUILDS_DIR ?? "/projects/mobile_builds/h_chat";
 const notesIndex = process.argv.indexOf("--notes");
 const notes = notesIndex > -1 ? process.argv[notesIndex + 1] : undefined;
 

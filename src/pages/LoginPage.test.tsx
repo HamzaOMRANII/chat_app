@@ -14,7 +14,7 @@ describe("LoginPage", () => {
     );
     render(<LoginPage />);
     expect(await screen.findByText(/h_chat\.apk · v0\.1\.0 · 5 MB/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/download/h_chat.apk");
+    expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/download/h_chat-0.1.0.apk");
   });
 
   it("hides the APK card when no release is published", async () => {
