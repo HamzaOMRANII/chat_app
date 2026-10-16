@@ -41,8 +41,8 @@ describe("H_CHAT sign-in flow", () => {
         : [400, { error: "Wrong code. 4 attempts left.", code: "wrong_code", details: { attemptsLeft: 4 } }];
 
     render(<App />);
-    await screen.findByLabelText("Username");
-    type("Username", "Hamza");
+    await screen.findByLabelText("Username or email");
+    type("Username or email", "Hamza");
     type("Password", "correct horse battery");
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
@@ -60,8 +60,8 @@ describe("H_CHAT sign-in flow", () => {
   it("shows the waiting screen for an account that isn't approved yet", async () => {
     routes["/api/auth/login"] = () => [403, { error: "Your account is waiting for approval.", code: "pending" }];
     render(<App />);
-    await screen.findByLabelText("Username");
-    type("Username", "leila.b");
+    await screen.findByLabelText("Username or email");
+    type("Username or email", "leila.b");
     type("Password", "correct horse battery");
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(await screen.findByText("Waiting for approval")).toBeInTheDocument();
@@ -90,8 +90,8 @@ describe("H_CHAT sign-in flow", () => {
     routes["/api/auth/login"] = () => [200, { challengeId: "c".repeat(24), emailHint: "h•••a@example.com" }];
     routes["/api/auth/verify-passcode"] = () => [200, { user: { id: "1", username: "hamza", email: "hamza@example.com", mustReset: true } }];
     render(<App />);
-    await screen.findByLabelText("Username");
-    type("Username", "hamza");
+    await screen.findByLabelText("Username or email");
+    type("Username or email", "hamza");
     type("Password", "correct horse battery");
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(await screen.findByRole("button", { name: "Use recovery passcode" }));

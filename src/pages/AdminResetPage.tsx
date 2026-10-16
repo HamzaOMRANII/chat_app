@@ -38,7 +38,7 @@ export function AdminResetPage({ onSignedIn, onBack }: { onSignedIn: (user: User
       </div>
       <Card>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          <TextField label="Username" name="username" autoComplete="username" autoCapitalize="none" required />
+          <TextField label="Username or email" name="username" autoComplete="username" autoCapitalize="none" required />
           <TextField label="Reset code" name="code" inputMode="numeric" mono required pattern="[\d ]{10,13}" title="10 digits" autoComplete="off" />
           {error ? <Notice tone="error">{error}</Notice> : null}
           <Button type="submit" block disabled={busy}>

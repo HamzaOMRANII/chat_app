@@ -56,7 +56,7 @@ export function LoginPage({ notice, onChallenge, onPending, onSignUp, onAdminRes
       >
         <h2 className="m-0 text-2xl font-extrabold tracking-[-0.02em]">Sign in</h2>
         {notice ? <Notice>{notice}</Notice> : null}
-        <TextField label="Username" name="username" autoComplete="username" autoCapitalize="none" required />
+        <TextField label="Username or email" name="username" autoComplete="username" autoCapitalize="none" required />
         <TextField label="Password" name="password" type="password" autoComplete="current-password" required />
         {error ? <Notice tone="error">{error}</Notice> : null}
         <Button type="submit" block disabled={busy}>
