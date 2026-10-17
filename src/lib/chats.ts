@@ -30,6 +30,8 @@ export type WireMessage = {
   deliveredAt: string | null;
   readAt: string | null;
   expiresAt: string;
+  /** A file sent with this message (its name and key are inside the ciphertext). */
+  fileId?: string | null;
 };
 
 /** The durations offered for Keep-alive (the category's maximum cuts the list); Automatic is always 7 days. */

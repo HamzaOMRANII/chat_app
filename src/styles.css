@@ -124,3 +124,24 @@
     color: var(--color-faint);
   }
 }
+
+/* View-only files: no selecting, dragging, long-press menu or printing; hidden while the page isn't focused */
+[data-view-only] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+}
+[data-view-only] img,
+[data-view-only] video {
+  pointer-events: auto;
+  -webkit-user-drag: none;
+}
+:root[data-shielded] [data-view-only] {
+  filter: blur(28px) brightness(0.4);
+}
+@media print {
+  [data-view-only] {
+    display: none !important;
+  }
+}

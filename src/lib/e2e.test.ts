@@ -13,7 +13,7 @@ globalThis.localStorage = {
     return memory.size;
   },
 } as Storage;
-import { decryptMessage, encryptMessage, forgetChat, openLive, sealLive, identity, keepChatKey, newChatKey, safetyCode, verifyKey, type PublishedKey } from "./e2e";
+import { decryptMessage, encryptMessage, forgetChat, newFileKey, openLive, openPiece, sealLive, sealPiece, identity, keepChatKey, newChatKey, safetyCode, verifyKey, type PublishedKey } from "./e2e";
 
 beforeEach(() => localStorage.clear());
 
@@ -90,5 +90,19 @@ describe("live chat", () => {
     // Another session, or a forged sender, doesn't open
     expect(await openLive({ secret: b.secret, sessionId: "live2", senderId: "A", myKey: keyB, theirKey: keyA, ...sealed })).toBeNull();
     expect(await openLive({ secret: b.secret, sessionId: "live1", senderId: "B", myKey: keyB, theirKey: keyA, ...sealed })).toBeNull();
+  });
+});
+
+describe("files", () => {
+  it("each piece opens only with its key, at its place, in its file", async () => {
+    const key = await newFileKey();
+    const data = new TextEncoder().encode("piece of a contract");
+    const sealed = await sealPiece(key, "file1", 0, 2, data);
+    expect(sealed.length).toBe(data.length + 40);
+    expect(new TextDecoder().decode(await openPiece(key, "file1", 0, 2, sealed))).toBe("piece of a contract");
+    await expect(openPiece(key, "file1", 1, 2, sealed)).rejects.toThrow(); // moved
+    await expect(openPiece(key, "file2", 0, 2, sealed)).rejects.toThrow(); // other file
+    await expect(openPiece(key, "file1", 0, 1, sealed)).rejects.toThrow(); // file cut short
+    await expect(openPiece(await newFileKey(), "file1", 0, 2, sealed)).rejects.toThrow();
   });
 });

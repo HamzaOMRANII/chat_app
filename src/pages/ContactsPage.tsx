@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import { modeLabel, type Chat } from "../lib/chats";
 import { isNativeApp } from "../lib/platform";
 import { clock, countdown, type LiveSession } from "../lib/liveChat";
+import { bytes, type MediaSummary } from "../lib/files";
 import { ago, lastSeen, type Contact, type ContactList } from "../lib/contacts";
 import { place, when, type LastLogin } from "../app/types";
 
@@ -19,6 +20,7 @@ type Props = {
   onOpen: (contact: Contact) => void;
   onOpenChat: (chatId: string) => void;
   onOpenLive: (sessionId: string) => void;
+  onOpenMedia: () => void;
   onSettings: () => void;
   /** Web only: Settings, where the Android app download is. */
   onGetApp: () => void;
@@ -36,6 +38,7 @@ export function ContactsPage({
   onOpen,
   onOpenChat,
   onOpenLive,
+  onOpenMedia,
   onSettings,
   onGetApp,
   onAuthError,
@@ -43,6 +46,7 @@ export function ContactsPage({
   const [list, setList] = useState<ContactList | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
   const [liveChats, setLiveChats] = useState<LiveSession[]>([]);
+  const [media, setMedia] = useState<MediaSummary | null>(null);
   const [now, setNow] = useState(Date.now());
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -54,6 +58,9 @@ export function ContactsPage({
       setList(contacts);
       setChats(open.chats);
       setLiveChats(running.live);
+      void api<MediaSummary>("/api/media")
+        .then(setMedia)
+        .catch(() => {});
       setError("");
     } catch (err) {
       if (!onAuthError(err))
@@ -194,6 +201,24 @@ export function ContactsPage({
         ) : null}
         {error ? <Notice tone="error">{error}</Notice> : null}
         <NotificationPrompt />
+
+        {media?.request ? (
+          <section role="alert" className="flex flex-col gap-2.5 rounded-2xl border border-keep-line bg-keep/[0.07] p-3.5">
+            <h2 className="m-0 text-[15px] font-extrabold">Download your media</h2>
+            <p className="m-0 text-[13.5px] leading-normal text-[#F3E3BF]">
+              The administrator is freeing space on the server. Your{" "}
+              <strong>
+                {media.files} file{media.files === 1 ? "" : "s"} ({bytes(media.used)})
+              </strong>{" "}
+              will be deleted on{" "}
+              <strong>{new Date(media.request.deadline).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</strong>. Download what you
+              want to keep before then.
+            </p>
+            <button type="button" onClick={onOpenMedia} className="min-h-11 rounded-xl bg-brand text-sm font-bold text-white">
+              Open my media
+            </button>
+          </section>
+        ) : null}
 
         {liveInvitations.length ? (
           <section aria-labelledby="live-invitations" className="flex flex-col gap-2.5">
