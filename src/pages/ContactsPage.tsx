@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Logo, Wordmark } from "../components/Logo";
 import { Avatar } from "../components/PageHeader";
+import { NotificationPrompt } from "../components/NotificationSettings";
 import { Notice } from "../components/Screen";
 import { api } from "../lib/api";
+import { modeLabel, type Chat } from "../lib/chats";
 import { isNativeApp } from "../lib/platform";
 import { ago, lastSeen, type Contact, type ContactList } from "../lib/contacts";
 import { place, when, type LastLogin } from "../app/types";
@@ -14,6 +16,7 @@ type Props = {
   onMyId: () => void;
   onAdd: () => void;
   onOpen: (contact: Contact) => void;
+  onOpenChat: (chatId: string) => void;
   onSettings: () => void;
   /** Web only: Settings, where the Android app download is. */
   onGetApp: () => void;
@@ -29,18 +32,22 @@ export function ContactsPage({
   onMyId,
   onAdd,
   onOpen,
+  onOpenChat,
   onSettings,
   onGetApp,
   onAuthError,
 }: Props) {
   const [list, setList] = useState<ContactList | null>(null);
+  const [chats, setChats] = useState<Chat[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [showLastLogin, setShowLastLogin] = useState(Boolean(lastLogin));
 
   const load = useCallback(async () => {
     try {
-      setList(await api<ContactList>("/api/contacts"));
+      const [contacts, open] = await Promise.all([api<ContactList>("/api/contacts"), api<{ chats: Chat[] }>("/api/chats")]);
+      setList(contacts);
+      setChats(open.chats);
       setError("");
     } catch (err) {
       if (!onAuthError(err))
@@ -65,6 +72,8 @@ export function ContactsPage({
     await load();
   }
 
+  const chatWith = new Map(chats.filter((c) => c.with).map((c) => [c.with!.id, c]));
+  const invitations = chats.filter((c) => c.status === "invited" && !c.createdByMe && c.with);
   const requests = list ? list.incoming.length + list.outgoing.length : 0;
   const online = list?.contacts.filter((c) => c.online).length ?? 0;
 
@@ -169,6 +178,34 @@ export function ContactsPage({
           </Notice>
         ) : null}
         {error ? <Notice tone="error">{error}</Notice> : null}
+        <NotificationPrompt />
+
+        {invitations.length ? (
+          <section aria-labelledby="invitations" className="flex flex-col gap-2.5">
+            <h2 id="invitations" className="eyebrow m-0 text-[11px] font-normal">
+              chat invitation{invitations.length > 1 ? "s" : ""}
+            </h2>
+            {invitations.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onOpenChat(c.id)}
+                className="flex flex-wrap items-center gap-3 rounded-2xl border border-line-strong bg-raised p-3.5 text-left text-ink"
+              >
+                <Avatar username={c.with!.username} size={40} online={c.with!.online} />
+                <span className="flex min-w-[9rem] flex-1 flex-col gap-1">
+                  <span className="text-[14.5px]">
+                    <strong>{c.with!.username}</strong> wants to chat
+                  </span>
+                  <span className={`self-start rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${c.mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep"}`}>
+                    {modeLabel(c)}
+                  </span>
+                </span>
+                <span className="ml-auto rounded-[11px] bg-brand px-3.5 py-2.5 text-[13.5px] font-bold text-white">See</span>
+              </button>
+            ))}
+          </section>
+        ) : null}
 
         {requests ? (
           <section aria-labelledby="requests" className="flex flex-col gap-2.5">
@@ -277,27 +314,48 @@ export function ContactsPage({
             </div>
           ) : null}
           <ul className="-mx-2 m-0 flex list-none flex-col p-0">
-            {list?.contacts.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  onClick={() => onOpen(c)}
-                  className="flex w-full items-center gap-3.5 rounded-[14px] bg-transparent px-2 py-[11px] text-left text-ink hover:bg-panel"
-                >
-                  <Avatar username={c.username} online={c.online} />
-                  <span className="flex min-w-0 grow flex-col gap-[3px]">
-                    <span className="truncate text-[15.5px] font-bold">
-                      {c.username}
+            {list?.contacts.map((c) => {
+              const chat = chatWith.get(c.id);
+              const waiting = chat?.status === "invited";
+              return (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => (chat ? onOpenChat(chat.id) : onOpen(c))}
+                    className="flex w-full items-center gap-3.5 rounded-[14px] bg-transparent px-2 py-[11px] text-left text-ink hover:bg-panel"
+                  >
+                    <Avatar username={c.username} online={c.online} />
+                    <span className="flex min-w-0 grow flex-col gap-[3px]">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-[15.5px] font-bold">{c.username}</span>
+                        {chat?.unread ? (
+                          <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-accent px-1.5 font-mono text-[11px] font-bold text-bg">{chat.unread}</span>
+                        ) : null}
+                      </span>
+                      <span className={`truncate text-[13px] ${chat?.unread ? "font-semibold text-ink-soft" : c.online ? "text-online" : "text-faint"}`}>
+                        {chat?.unread
+                          ? `${chat.unread} new message${chat.unread > 1 ? "s" : ""}`
+                          : waiting
+                            ? chat.createdByMe
+                              ? "invited · waiting"
+                              : "invites you to chat"
+                            : lastSeen(c)}
+                      </span>
                     </span>
-                    <span
-                      className={`text-[13px] ${c.online ? "text-online" : "text-faint"}`}
-                    >
-                      {lastSeen(c)}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            ))}
+                    {chat ? (
+                      <span className="flex shrink-0 flex-col items-end gap-[5px]">
+                        <span
+                          className={`rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${chat.mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep"} ${waiting ? "border-dashed" : ""}`}
+                        >
+                          {modeLabel(chat)}
+                        </span>
+                        {chat.lastMessageAt ? <span className="font-mono text-[11px] text-faint">{shortWhen(chat.lastMessageAt)}</span> : null}
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </section>
       </div>
@@ -325,4 +383,13 @@ export function ContactsPage({
       </div>
     </main>
   );
+}
+
+/** "09:15", "yesterday", "Mon" */
+function shortWhen(iso: string) {
+  const d = new Date(iso);
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === new Date(Date.now() - 864e5).toDateString()) return "yesterday";
+  return d.toLocaleDateString([], { weekday: "short" });
 }

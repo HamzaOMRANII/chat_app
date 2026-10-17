@@ -4,7 +4,29 @@ import { App } from "./App";
 
 const socketHandlers: Record<string, (arg: unknown) => void> = {};
 vi.mock("socket.io-client", () => ({
-  io: () => ({ on: (event: string, fn: (arg: unknown) => void) => (socketHandlers[event] = fn), close: () => {} }),
+  io: () => ({ on: (event: string, fn: (arg: unknown) => void) => (socketHandlers[event] = fn), emit: () => {}, close: () => {} }),
+}));
+
+// libsodium can't run in jsdom (separate realm); the real crypto is covered by lib/e2e.test.ts.
+// Here: a transparent stand-in so the screens can be exercised end to end.
+vi.mock("../lib/e2e", () => ({
+  identity: async (_u: string, deviceId: string) => ({ deviceId, signPub: "I".repeat(43) + "=", signSec: "s" }),
+  newChatKey: async () => ({ pub: "P".repeat(43) + "=", sig: "S".repeat(86) + "==", secret: "x" }),
+  keepChatKey: () => {},
+  hasChatKey: () => true,
+  forgetChat: () => {},
+  forgetChatsExcept: () => {},
+  verifyKey: async () => true,
+  encryptMessage: async ({ plain, myKey, theirKey }: { plain: { t: string }; myKey: { version: number }; theirKey: { version: number } }) => ({
+    ciphertext: btoa(JSON.stringify(plain)),
+    nonce: "N".repeat(32),
+    senderKeyVersion: myKey.version,
+    recipientKeyVersion: theirKey.version,
+  }),
+  decryptMessage: async ({ ciphertext }: { ciphertext: string }) => (ciphertext === "LOCKED" ? null : JSON.parse(atob(ciphertext))),
+  safetyCode: async () => Array.from({ length: 12 }, (_, i) => String(10000 + i)),
+  safetyChecked: () => null,
+  markSafetyChecked: () => {},
 }));
 
 type Route = (body: Record<string, unknown>) => [number, Record<string, unknown>];
@@ -17,6 +39,8 @@ beforeEach(() => {
     "/api/auth/me": () => [401, { error: "Sign in to continue", code: "unauthorized" }],
     "/download/latest.json": () => [404, {}],
     "/api/contacts": () => [200, { contacts: [], incoming: [], outgoing: [] }],
+    "/api/chats": () => [200, { chats: [] }],
+    "/api/keys/identity": () => [200, { changed: false }],
   };
   vi.stubGlobal(
     "fetch",
@@ -219,5 +243,181 @@ describe("Android app download", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Get the Android app" }));
     expect(await screen.findByText(/v0\.3\.2/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Download" })).toHaveAttribute("href", "/download/h_chat-0.3.2.apk");
+  });
+});
+
+describe("stored chats", () => {
+  const me = { id: "1".repeat(24), username: "hamza", email: "hamza@example.com", mustReset: false };
+  const leila = { id: "2".repeat(24), username: "leila.b", online: true, lastSeenAt: null, identityPub: "I".repeat(43) + "=" };
+  const key = (userId: string) => ({ userId, version: 1, pub: "P".repeat(43) + "=", sig: "S".repeat(86) + "==", identityPub: "I".repeat(43) + "=" });
+  const enc = (t: string) => btoa(JSON.stringify({ t }));
+  const wire = (id: string, senderId: string, text: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    senderId,
+    ciphertext: text === "LOCKED" ? "LOCKED" : enc(text),
+    nonce: "N".repeat(32),
+    senderKeyVersion: 1,
+    recipientKeyVersion: 1,
+    sentAt: new Date(Date.now() - 60_000).toISOString(),
+    deliveredAt: null,
+    readAt: null,
+    expiresAt: new Date(Date.now() + 2 * 864e5 + 4 * 36e5).toISOString(),
+    ...extra,
+  });
+  const chat = (over: Record<string, unknown> = {}) => ({
+    id: "c".repeat(24),
+    with: leila,
+    mode: "keep",
+    retentionMinutes: 4320,
+    status: "active",
+    createdByMe: false,
+    invitedAt: new Date().toISOString(),
+    inviteExpiresAt: null,
+    acceptedAt: new Date().toISOString(),
+    lastMessageAt: null,
+    unread: 0,
+    keys: [key(me.id), key(leila.id)],
+    ...over,
+  });
+
+  beforeEach(() => {
+    routes["/api/auth/me"] = () => [200, { user: me }];
+    routes["/api/contacts"] = () => [200, { contacts: [{ id: leila.id, username: "leila.b", online: true, lastSeenAt: null, since: new Date().toISOString(), via: "invite" }], incoming: [], outgoing: [] }];
+  });
+
+  it("accepts an invitation, reads, sends, and follows the chat live", async () => {
+    let status = "invited";
+    const posted: Record<string, unknown>[] = [];
+    routes["/api/chats"] = () => [200, { chats: [chat({ status, keys: status === "invited" ? [key(leila.id)] : [key(me.id), key(leila.id)] })] }];
+    routes[`/api/chats/${"c".repeat(24)}`] = () => [200, { chat: chat({ status, keys: status === "invited" ? [key(leila.id)] : [key(me.id), key(leila.id)] }) }];
+    routes[`/api/chats/${"c".repeat(24)}/accept`] = () => {
+      status = "active";
+      return [200, { chat: chat() }];
+    };
+    routes[`/api/chats/${"c".repeat(24)}/receipts`] = () => [200, { delivered: 1, read: 1 }];
+    routes[`/api/chats/${"c".repeat(24)}/messages`] = (body) => {
+      if (body.ciphertext) {
+        posted.push(body);
+        return [201, { message: wire("m9", me.id, "ignored", { ...body }) }];
+      }
+      return [200, { messages: [wire("m0", leila.id, "LOCKED"), wire("m1", leila.id, "Sent the contract, check it before Friday")] }];
+    };
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /leila.b wants to chat/ }));
+    expect(await screen.findByText(/a Keep-alive chat: each message is deleted 3 days after it's sent/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Accept" }));
+
+    expect(await screen.findByText("Sent the contract, check it before Friday")).toBeInTheDocument();
+    expect(screen.getByText(/1 earlier message was sent to your other device/)).toBeInTheDocument();
+    expect(screen.getByText(/deleted in 2d 0[34]h/)).toBeInTheDocument();
+    await waitFor(() => expect(calls.some((c) => c.path.endsWith("/receipts"))).toBe(true));
+
+    type("Message", "Read it. Two changes on page 4.");
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByText("Read it. Two changes on page 4.")).toBeInTheDocument();
+    expect(posted[0]).toMatchObject({ senderKeyVersion: 1, recipientKeyVersion: 1 });
+    expect(posted[0]).not.toHaveProperty("text");
+
+    socketHandlers["typing"]?.({ chatId: "c".repeat(24) });
+    expect(await screen.findByText("leila.b is typing…")).toBeInTheDocument();
+    socketHandlers["msg:new"]?.({ chatId: "c".repeat(24), message: wire("m2", leila.id, "Can you send the signed copy?") });
+    expect(await screen.findByText("Can you send the signed copy?")).toBeInTheDocument();
+    socketHandlers["msg:status"]?.({ chatId: "c".repeat(24), delivered: [], read: ["m9"], at: new Date().toISOString() });
+    expect(await screen.findByText(/✓✓ read/)).toBeInTheDocument();
+
+    // Ended: back to the list at once, with a banner saying why
+    routes["/api/chats"] = () => [200, { chats: [] }];
+    socketHandlers["chat:ended"]?.({ chatId: "c".repeat(24), reason: "ended_by_user", by: leila.id });
+    expect(await screen.findByText("Chat ended by leila.b. All messages were deleted.")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Add contact" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "End chat" })).toBeNull();
+  });
+
+  it("shows ✓✓ read even when the read receipt arrives before the server's answer to the send", async () => {
+    routes["/api/chats"] = () => [200, { chats: [chat()] }];
+    routes[`/api/chats/${"c".repeat(24)}`] = () => [200, { chat: chat() }];
+    routes[`/api/chats/${"c".repeat(24)}/receipts`] = () => [200, { delivered: 0, read: 0 }];
+    routes[`/api/chats/${"c".repeat(24)}/messages`] = (body) => {
+      if (!body.ciphertext) return [200, { messages: [] }];
+      // leila has the chat open too: her read receipt beats the answer to my send
+      socketHandlers["msg:status"]!({ chatId: "c".repeat(24), delivered: [], read: ["m9"], at: new Date().toISOString() });
+      return [201, { message: wire("m9", me.id, "ignored", { ...body }) }];
+    };
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
+    expect(await screen.findByText("No messages yet. Say hello.")).toBeInTheDocument();
+    type("Message", "Are you there?");
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByText("Are you there?")).toBeInTheDocument();
+    expect(await screen.findByText(/✓✓ read/)).toBeInTheDocument();
+  });
+
+  it("after a reconnect, the open chat shows the messages it missed", async () => {
+    let wireList = [wire("m1", leila.id, "First")];
+    routes["/api/chats"] = () => [200, { chats: [chat()] }];
+    routes[`/api/chats/${"c".repeat(24)}`] = () => [200, { chat: chat() }];
+    routes[`/api/chats/${"c".repeat(24)}/receipts`] = () => [200, { delivered: 0, read: 0 }];
+    routes[`/api/chats/${"c".repeat(24)}/messages`] = () => [200, { messages: wireList }];
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
+    expect(await screen.findByText("First")).toBeInTheDocument();
+
+    // Sent while this phone's connection was down: no live event ever came
+    wireList = [...wireList, wire("m2", leila.id, "Sent while you were offline")];
+    socketHandlers["connect"]!(undefined);
+    expect(await screen.findByText("Sent while you were offline")).toBeInTheDocument();
+  });
+
+  it("shows a banner for each event and opens what it's about; an accepted chat opens by itself", async () => {
+    routes["/api/chats"] = () => [200, { chats: [chat({ status: "invited", createdByMe: true, keys: [key(me.id)] })] }];
+    routes[`/api/chats/${"c".repeat(24)}`] = () => [200, { chat: chat() }];
+    routes[`/api/chats/${"c".repeat(24)}/messages`] = () => [200, { messages: [] }];
+    render(<App />);
+    expect(await screen.findByRole("button", { name: "Add contact" })).toBeInTheDocument();
+    await waitFor(() => expect(socketHandlers["notify"]).toBeDefined());
+
+    socketHandlers["notify"]!({ kind: "contact_request", title: "rami.t", body: "wants to connect with you", tag: "contact:r", open: {}, system: true });
+    expect(await screen.findByText("wants to connect with you")).toBeInTheDocument();
+
+    // leila accepts my invitation: the chat opens without a tap
+    socketHandlers["chat:accepted"]!({ chatId: "c".repeat(24), by: leila.id });
+    expect(await screen.findByText("No messages yet. Say hello.")).toBeInTheDocument();
+
+    // A message in another chat: banner; in this one: nothing extra
+    socketHandlers["notify"]!({ kind: "message", title: "leila.b", body: "New message", tag: `chat:${"c".repeat(24)}`, open: { chatId: "c".repeat(24) }, system: true });
+    socketHandlers["notify"]!({ kind: "message", title: "rami.t", body: "New message", tag: `chat:${"d".repeat(24)}`, open: { chatId: "d".repeat(24) }, system: true });
+    expect(await screen.findAllByText("New message")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: /rami\.t\s*New message/ })).toBeInTheDocument();
+  });
+
+  it("starts a chat with only the allowed modes, then waits for acceptance", async () => {
+    let invited = false;
+    routes["/api/chats"] = (body) => {
+      if (body.mode) {
+        invited = true;
+        return [201, { chat: chat({ status: "invited", createdByMe: true, mode: body.mode, retentionMinutes: body.retentionMinutes, keys: [key(me.id)] }) }];
+      }
+      return [200, { chats: invited ? [chat({ status: "invited", createdByMe: true, retentionMinutes: 30, keys: [key(me.id)] })] : [] }];
+    };
+    routes[`/api/chats/options/${leila.id}`] = () => [200, { options: { keepMaxDays: 3, auto: false, live: false } }];
+    routes[`/api/chats/${"c".repeat(24)}`] = () => [200, { chat: chat({ status: "invited", createdByMe: true, retentionMinutes: 30, keys: [key(me.id)] }) }];
+    routes[`/api/contacts/${leila.id}`] = () => [200, { contact: { id: leila.id, username: "leila.b", online: true, lastSeenAt: null, since: new Date().toISOString(), via: "invite" } }];
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start chat" }));
+    expect(await screen.findByText("Keep-alive")).toBeInTheDocument();
+    expect(screen.queryByText("Automatic")).toBeNull(); // not allowed by this pair's rules
+    // From 30 minutes up to this pair's 3 days
+    expect(screen.getByText("30 minutes")).toBeInTheDocument();
+    expect(screen.getByText("3 days")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("How long messages stay"), { target: { value: "0" } });
+    expect(screen.getByText("KEEP · 30M")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Send chat invitation" }));
+
+    expect(await screen.findByText("Waiting for leila.b")).toBeInTheDocument();
+    expect(screen.getByText(/each message is deleted 30 minutes after it's sent/)).toBeInTheDocument();
+    expect(calls.find((c) => c.path === "/api/chats" && c.body.mode)!.body).toMatchObject({ userId: leila.id, mode: "keep", retentionMinutes: 30 });
   });
 });

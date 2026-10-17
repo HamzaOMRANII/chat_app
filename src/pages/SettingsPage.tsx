@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { AndroidDownload } from "../components/AndroidDownload";
+import { NotificationSettings } from "../components/NotificationSettings";
 import { PageHeader } from "../components/PageHeader";
 import { isNativeApp } from "../lib/platform";
 import type { User } from "../app/types";
@@ -25,6 +26,7 @@ export function SettingsPage({ user, focusApp, onBack, onSecurityLog, onSignOut 
           <p className="m-0 text-xl font-extrabold">{user.username}</p>
           <p className="m-0 font-mono text-xs text-dim">{user.email}</p>
         </section>
+        <NotificationSettings />
         <div className="flex flex-col overflow-hidden rounded-2xl border border-line bg-panel">
           <button type="button" onClick={onSecurityLog} className={row}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

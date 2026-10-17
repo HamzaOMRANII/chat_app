@@ -6,7 +6,7 @@ declare const __APP_VERSION__: string;
 const DEVICE_ID_KEY = "hc.deviceId";
 
 /** A random ID that identifies this browser or phone in the security log. */
-function deviceId() {
+export function deviceId() {
   try {
     let id = localStorage.getItem(DEVICE_ID_KEY);
     if (!id) {

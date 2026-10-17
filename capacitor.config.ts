@@ -13,6 +13,8 @@ const config: CapacitorConfig = {
     // Android keeps the app between the status bar and the navigation bar (index.html has no viewport-fit=cover),
     // with light icons on the dark background.
     SystemBars: { style: "DARK" },
+    // Phone notifications: the logo in the status bar, in the brand color
+    LocalNotifications: { smallIcon: "ic_stat_hchat", iconColor: "#8C2A3F" },
   },
 };
 

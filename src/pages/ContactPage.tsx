@@ -3,13 +3,23 @@ import { Avatar, PageHeader } from "../components/PageHeader";
 import { Notice } from "../components/Screen";
 import { api, ApiError } from "../lib/api";
 import { lastSeen, type Contact } from "../lib/contacts";
+import { StartChatSheet } from "../components/StartChatSheet";
+import type { Chat } from "../lib/chats";
 
-type Props = { contact: Contact; version: number; onBack: () => void; onAuthError: (err: unknown) => boolean };
+type Props = { contact: Contact; userId: string; version: number; onBack: () => void; onChat: (chatId: string) => void; onAuthError: (err: unknown) => boolean };
 
-export function ContactPage({ contact: initial, version, onBack, onAuthError }: Props) {
+export function ContactPage({ contact: initial, userId, version, onBack, onChat, onAuthError }: Props) {
   const [contact, setContact] = useState(initial);
   const [confirm, setConfirm] = useState<"remove" | "block" | null>(null);
   const [error, setError] = useState("");
+  const [chat, setChat] = useState<Chat | null>(null);
+  const [starting, setStarting] = useState(false);
+
+  useEffect(() => {
+    api<{ chats: Chat[] }>("/api/chats")
+      .then(({ chats }) => setChat(chats.find((c) => c.with?.id === initial.id) ?? null))
+      .catch(() => {});
+  }, [initial.id, version]);
 
   // Live online status; a contact that disappeared (removed, blocked, paused) sends us back.
   useEffect(() => {
@@ -52,8 +62,12 @@ export function ContactPage({ contact: initial, version, onBack, onAuthError }: 
           </div>
         </dl>
 
-        <button type="button" disabled className="min-h-[52px] rounded-[14px] bg-brand text-[15px] font-bold text-white opacity-45">
-          Start chat · coming soon
+        <button
+          type="button"
+          onClick={() => (chat ? onChat(chat.id) : setStarting(true))}
+          className="min-h-[52px] rounded-[14px] bg-brand text-[15px] font-bold text-white hover:bg-brand-hover"
+        >
+          {chat ? (chat.status === "active" ? "Open chat" : chat.createdByMe ? "Invitation sent · open" : "Chat invitation · open") : "Start chat"}
         </button>
 
         {error ? <Notice tone="error">{error}</Notice> : null}
@@ -64,7 +78,7 @@ export function ContactPage({ contact: initial, version, onBack, onAuthError }: 
             <span className="flex flex-col gap-3">
               <span>
                 {confirm === "remove"
-                  ? `Remove ${contact.username}? You can add each other again later.`
+                  ? `Remove ${contact.username}? Any chat between you ends and its messages are deleted. You can add each other again later.`
                   : `Block ${contact.username}? They're removed and can never find you again, even with a new code. They aren't told.`}
               </span>
               <span className="flex gap-2">
@@ -89,10 +103,13 @@ export function ContactPage({ contact: initial, version, onBack, onAuthError }: 
             >
               Block {contact.username}
             </button>
-            <p className="m-0 text-center text-xs leading-normal text-faint">Neither is announced. A blocked person can't find you again, even with a new code.</p>
+            <p className="m-0 text-center text-xs leading-normal text-faint">Neither is announced, and any chat between you ends. A blocked person can't find you again, even with a new code.</p>
           </div>
         )}
       </div>
+      {starting ? (
+        <StartChatSheet userId={userId} peer={contact} onStarted={(c) => onChat(c.id)} onClose={() => setStarting(false)} onAuthError={onAuthError} />
+      ) : null}
     </main>
   );
 }
