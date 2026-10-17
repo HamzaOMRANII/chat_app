@@ -9,6 +9,9 @@ import { live } from "../lib/live";
 import type { LiveSession } from "../lib/liveChat";
 import { StartChatSheet } from "../components/StartChatSheet";
 import { AttachSheet } from "../components/AttachSheet";
+import { ExportSheet } from "../components/ExportSheet";
+import { ExportCards } from "../components/ExportCards";
+import type { ExportReq } from "../lib/exports";
 import { FileBubble } from "../components/FileBubble";
 import { MediaViewer } from "../components/MediaViewer";
 import { useViewOnlyProtection } from "../lib/protect";
@@ -89,6 +92,8 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
   const [viewing, setViewing] = useState<{ file: FileRef; mine: boolean; sentAt: string; expiresAt: string } | null>(null);
   const [fileNote, setFileNote] = useState("");
   const uploadKey = useRef(0);
+  const [exportsList, setExportsList] = useState<ExportReq[]>([]);
+  const [exporting, setExporting] = useState(false);
   const wide = useWide();
   // Live chat with the same person: allowed by their rules? already running?
   const [liveAllowed, setLiveAllowed] = useState(false);
@@ -161,6 +166,14 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
     void api(`/api/chats/${chatId}/receipts`, { body: { read: document.visibilityState === "visible" } }).catch(() => {});
   }, [chatId]);
 
+  const loadExports = useCallback(async () => {
+    try {
+      setExportsList((await api<{ exports: ExportReq[] }>(`/api/chats/${chatId}/exports`)).exports);
+    } catch {
+      /* shown again on the next reload */
+    }
+  }, [chatId]);
+
   const load = useCallback(async () => {
     try {
       let { chat: current } = await api<{ chat: Chat }>(`/api/chats/${chatId}`);
@@ -172,12 +185,13 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
         api<{ files: FileInfo[] }>(`/api/chats/${chatId}/files`),
       ]);
       setFiles(new Map(list.map((f) => [f.id, f])));
+      void loadExports();
       setMessages(await open(current, wire));
       if (wire.some((m) => m.senderId !== userId && !m.readAt)) receipts();
     } catch (err) {
       fail(err);
     }
-  }, [chatId, userId, open, receipts, fail]);
+  }, [chatId, userId, open, receipts, fail, loadExports]);
 
   useEffect(() => {
     void load();
@@ -211,6 +225,7 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
         close(reason, by === userId);
       }),
       live.on<{ chatId: string }>("chat:keys", ({ chatId: id }) => id === chatId && void load()),
+      live.on<{ chatId: string }>("exports:changed", ({ chatId: id }) => id === chatId && void loadExports()),
       live.on<{ chatId: string; fileIds: string[] }>("files:deleted", ({ chatId: id, fileIds }) => {
         if (id !== chatId) return;
         forgetFiles(fileIds);
@@ -228,7 +243,7 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
       offs.forEach((off) => off());
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [chatId, userId, open, receipts, load, close]);
+  }, [chatId, userId, open, receipts, load, close, loadExports]);
 
   // Safety net: while the live connection is down and the chat is on screen, check for new messages every 5 s
   useEffect(() => {
@@ -403,6 +418,20 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
             {row ? (liveWith ? "BACK TO LIVE" : "SWITCH TO LIVE") : "LIVE"}
           </button>
         ) : null}
+        {rules?.export ? (
+          <button
+            type="button"
+            onClick={() => setExporting(true)}
+            aria-label="Export this chat"
+            title="Export this chat"
+            className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-field border border-line bg-panel text-ink ${row ? "min-h-10 flex-1 text-[13px] font-semibold" : "size-11"}`}
+          >
+            <svg viewBox="0 0 24 24" width={row ? 17 : 19} height={row ? 17 : 19} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 15V3M7 8l5-5 5 5M5 14v6h14v-6" />
+            </svg>
+            {row ? <span aria-hidden="true">Export</span> : null}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => onMedia(chatId)}
@@ -570,6 +599,7 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
                 <span className="font-mono text-[10.5px] text-dim">{Math.round((u.done / u.size) * 100)}%</span>
               </div>
             ))}
+            {chat ? <ExportCards exports={exportsList} chat={chat} userId={userId} onChanged={() => void loadExports()} onError={fail} /> : null}
             {typing ? (
               <p className="m-0 flex items-center gap-2 font-mono text-[11px] text-dim">
                 <span className="flex gap-[3px]" aria-hidden="true">
@@ -647,6 +677,18 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
           onPick={(picked, viewOnly) => void sendFiles(picked, viewOnly)}
           onClose={() => setAttaching(false)}
         /> : null}
+      {exporting ? (
+        <ExportSheet
+          chatId={chatId}
+          peerName={peerName}
+          onAsked={(e) => {
+            setExporting(false);
+            setExportsList((list) => [e, ...list]);
+          }}
+          onClose={() => setExporting(false)}
+          onAuthError={onAuthError}
+        />
+      ) : null}
       {viewing ? (
         <MediaViewer
           file={viewing.file}

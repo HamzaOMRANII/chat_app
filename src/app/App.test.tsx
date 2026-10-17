@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App } from "./App";
 
 const socketHandlers: Record<string, (arg: unknown) => void> = {};
@@ -63,7 +63,11 @@ beforeEach(() => {
       const body = typeof init?.body === "string" ? JSON.parse(init.body) : init?.body ? { bytes: (init.body as Uint8Array).length } : {};
       calls.push({ path, body });
       const fallback = (): [number, Record<string, unknown>] =>
-        /^\/api\/chats\/[a-f0-9]{24}\/files$/.test(path) ? [200, { files: [] }] : [404, { error: "Not found" }];
+        /^\/api\/chats\/[a-f0-9]{24}\/files$/.test(path)
+          ? [200, { files: [] }]
+          : /^\/api\/chats\/[a-f0-9]{24}\/exports$/.test(path)
+            ? [200, { exports: [] }]
+            : [404, { error: "Not found" }];
       const [status, data] = routes[path]?.(body) ?? fallback();
       return new Response(JSON.stringify(data), { status });
     }),
@@ -628,5 +632,36 @@ describe("live chats", () => {
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
     expect(await screen.findByRole("button", { name: "Files aren't allowed with this contact" })).toBeDisabled();
+  });
+
+  it("asks to export, and the other side approves from the chat", async () => {
+    const chatId = "c".repeat(24);
+    const ck = (userId: string) => ({ ...key(userId), version: 1 });
+    const stored = { id: chatId, with: { ...leila, lastSeenAt: null }, mode: "keep", retentionMinutes: 1440, status: "active", createdByMe: true, invitedAt: new Date().toISOString(), inviteExpiresAt: null, acceptedAt: new Date().toISOString(), lastMessageAt: null, unread: 0, keys: [ck(me.id), ck(leila.id)] };
+    const request = (over: object) => ({ id: "e".repeat(24), chatId, requestedBy: leila.id, approverId: me.id, messages: true, media: true, period: "all", counts: { messages: 214, files: 23, bytes: 186e6 }, status: "pending", requestedAt: new Date().toISOString(), answeredAt: null, until: new Date(Date.now() + 23 * 3600_000).toISOString(), downloadedAt: null, ...over });
+    let list = [request({})];
+    routes["/api/chats"] = () => [200, { chats: [stored] }];
+    routes[`/api/chats/${chatId}`] = () => [200, { chat: stored }];
+    routes[`/api/chats/${chatId}/messages`] = () => [200, { messages: [], me: me.id }];
+    routes[`/api/chats/${chatId}/exports`] = (body) => (body.period ? [201, { export: request({ requestedBy: me.id, approverId: leila.id, period: body.period, messages: body.messages, media: body.media }) }] : [200, { exports: list }]);
+    routes[`/api/exports/${"e".repeat(24)}/approve`] = () => {
+      list = [request({ status: "approved", answeredAt: new Date().toISOString() })];
+      return [200, { export: list[0] }];
+    };
+    routes[`/api/chats/options/${leila.id}`] = () => [200, { options: { keepMaxDays: 7, auto: true, live: true, files: "all", export: true } }];
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
+    const card = await screen.findByRole("alert", { name: "Export request" });
+    expect(card).toHaveTextContent("214 messages + 23 files · 177 MB · everything");
+    fireEvent.click(within(card).getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(calls.some((c) => c.path.endsWith("/approve"))).toBe(true));
+    expect(await screen.findByText(/leila.b can save the export for/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Export this chat" }));
+    fireEvent.click(await screen.findByRole("radio", { name: "Last 7 days" }));
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Export this chat" })).getByRole("checkbox", { name: /^Media/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Ask leila.b to approve" }));
+    await waitFor(() => expect(calls.find((c) => c.path === `/api/chats/${chatId}/exports` && c.body.period)!.body).toEqual({ messages: true, media: false, period: "7d" }));
   });
 });
