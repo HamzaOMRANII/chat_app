@@ -7,6 +7,8 @@ import { live } from "../lib/live";
 import { acceptLive, clock, countdown, forgetLive, liveKeys, liveSecret, type LiveSession } from "../lib/liveChat";
 
 const MAX_LENGTH = 1000;
+/** How long a dropped connection is waited for before everything is wiped (as on the server). */
+const DROP_MS = 60_000;
 
 type Line = { id: number; mine: boolean; text: string };
 /** What travels in a live chat: the whole current draft on every keystroke, or a finished line. `n` keeps them in order. */
@@ -23,7 +25,7 @@ type Props = {
 
 const ENDED: Record<string, (peer: string) => string> = {
   left: (peer) => `${peer} left. Everything was wiped on both phones.`,
-  connection_lost: (peer) => `${peer}'s connection was lost for 30 seconds. Everything was wiped on both phones.`,
+  connection_lost: (peer) => `${peer}'s connection was lost for 1 minute. Everything was wiped on both phones.`,
   declined: (peer) => `${peer} declined the live chat.`,
   cancelled: (peer) => `${peer} cancelled the invitation.`,
   invite_expired: () => "The invitation expired without an answer.",
@@ -114,7 +116,7 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
       }),
       live.on<{ sessionId: string; online: boolean; deadline?: number }>("live:peer", (p) => {
         if (p.sessionId !== sessionId) return;
-        setSession((s) => (s ? { ...s, waitingFor: p.online ? null : { mine: false, deadline: p.deadline ?? Date.now() + 30_000 } } : s));
+        setSession((s) => (s ? { ...s, waitingFor: p.online ? null : { mine: false, deadline: p.deadline ?? Date.now() + DROP_MS } } : s));
         if (!p.online) setTheirDraft("");
       }),
       live.on<{ sessionId: string; reason: string; by: string | null }>("live:ended", (p) => {
@@ -238,8 +240,8 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
           {peer ? <Avatar username={peer.username} online={peer.online} size={76} /> : null}
           <h2 className="m-0 text-[22px] font-extrabold">{session.createdByMe ? `Waiting for ${peerName}` : `${peerName} wants to chat live`}</h2>
           <p className="m-0 max-w-[38ch] text-[14px] leading-relaxed text-dim">
-            You'll see each other type, letter by letter. <strong className="text-live">Nothing is stored</strong>: everything is wiped when either of you leaves, or after 30
-            seconds without connection.
+            You'll see each other type, letter by letter. <strong className="text-live">Nothing is stored</strong>: everything is wiped when either of you leaves, or after 1 minute
+            without connection.
           </p>
           <div className="flex w-full max-w-[320px] flex-col items-center gap-2">
             <p className="m-0 font-mono text-xs text-dim">
@@ -282,7 +284,7 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
                 {peerName}'s connection dropped. The chat is wiped in <strong>{Math.max(0, Math.ceil((waiting.deadline - now) / 1000))} s</strong> unless they come back.
               </p>
               <div className="h-1 overflow-hidden rounded-full bg-[#3A3220]" aria-hidden="true">
-                <div className="h-full bg-keep" style={{ width: `${Math.max(0, Math.min(100, ((waiting.deadline - now) / 30_000) * 100))}%` }} />
+                <div className="h-full bg-keep" style={{ width: `${Math.max(0, Math.min(100, ((waiting.deadline - now) / DROP_MS) * 100))}%` }} />
               </div>
             </div>
           ) : null}

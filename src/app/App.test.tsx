@@ -530,4 +530,32 @@ describe("live chats", () => {
     expect(await screen.findByText("Live chat with leila.b ended")).toBeInTheDocument();
     expect(calls.some((c) => c.path === `/api/live/${id}`)).toBe(true);
   });
+
+  it("starts a live chat from an open stored chat, next to it", async () => {
+    const chatId = "c".repeat(24);
+    const ck = (userId: string) => ({ ...key(userId), version: 1 });
+    const stored = { id: chatId, with: { ...leila, lastSeenAt: null }, mode: "keep", retentionMinutes: 1440, status: "active", createdByMe: true, invitedAt: new Date().toISOString(), inviteExpiresAt: null, acceptedAt: new Date().toISOString(), lastMessageAt: null, unread: 0, keys: [ck(me.id), ck(leila.id)] };
+    let invited = false;
+    const waiting = () => session({ createdByMe: true, keys: [key(me.id)], inviteExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString() });
+    routes["/api/chats"] = () => [200, { chats: [stored] }];
+    routes[`/api/chats/${chatId}`] = () => [200, { chat: stored }];
+    routes[`/api/chats/${chatId}/messages`] = () => [200, { messages: [], me: me.id }];
+    routes[`/api/chats/${chatId}/receipts`] = () => [200, { delivered: 0, read: 0 }];
+    routes[`/api/chats/options/${leila.id}`] = () => [200, { options: { keepMaxDays: 7, auto: true, live: true } }];
+    routes["/api/live"] = (body) => {
+      if (body.userId) {
+        invited = true;
+        return [201, { live: waiting() }];
+      }
+      return [200, { live: invited ? [waiting()] : [] }];
+    };
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start a live chat" }));
+    expect(await screen.findByRole("radio", { name: /Live/ })).toBeChecked();
+    expect(screen.queryByText("Keep-alive")).toBeNull(); // the stored chat is already there
+    fireEvent.click(screen.getByRole("button", { name: "Invite to a live chat" }));
+    expect(await screen.findByText("Waiting for leila.b")).toBeInTheDocument();
+  });
 });

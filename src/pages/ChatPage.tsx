@@ -6,6 +6,8 @@ import { ensureMyKey, forgetChat, keepChatKey, latestKey, longDuration, makeChat
 import { lastSeen } from "../lib/contacts";
 import { decryptMessage, encryptMessage } from "../lib/e2e";
 import { live } from "../lib/live";
+import type { LiveSession } from "../lib/liveChat";
+import { StartChatSheet } from "../components/StartChatSheet";
 
 type Shown = { id: string; mine: boolean; text: string | null; sentAt: string; deliveredAt: string | null; readAt: string | null; expiresAt: string };
 type Props = {
@@ -15,6 +17,8 @@ type Props = {
   /** The chat ended (either side, the rules, the admin): back to the list, with this explanation. */
   onClosed: (text: string) => void;
   onSafety: (chat: Chat) => void;
+  /** Open (or start) a live chat with the same person, next to this one. */
+  onLive: (sessionId: string) => void;
   onAuthError: (err: unknown) => boolean;
 };
 
@@ -54,7 +58,11 @@ function dayLabel(iso: string) {
 
 const badgeTone = (mode: Chat["mode"]) => (mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep");
 
-export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onAuthError }: Props) {
+export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onLive, onAuthError }: Props) {
+  // Live chat with the same person: allowed by their rules? already running?
+  const [liveAllowed, setLiveAllowed] = useState(false);
+  const [liveWith, setLiveWith] = useState<LiveSession | null>(null);
+  const [startingLive, setStartingLive] = useState(false);
   const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Shown[]>([]);
   const [error, setError] = useState("");
@@ -266,6 +274,21 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onAuthErr
   }
 
   const peer = chat?.with;
+  const peerId = chat?.status === "active" ? peer?.id : undefined;
+  useEffect(() => {
+    if (!peerId) return;
+    const check = () => {
+      api<{ live: LiveSession[] }>("/api/live")
+        .then(({ live: open }) => setLiveWith(open.find((s) => s.with?.id === peerId) ?? null))
+        .catch(() => {});
+    };
+    api<{ options: { live: boolean } }>(`/api/chats/options/${peerId}`)
+      .then(({ options }) => setLiveAllowed(options.live))
+      .catch(() => {});
+    check();
+    const offs = [live.on("live:changed", check), live.on("live:ended", check), live.on("resync", check)];
+    return () => offs.forEach((off) => off());
+  }, [peerId]);
   const peerName = peer?.username ?? "your contact";
   const theirLatest = chat && peer ? latestKey(chat, peer.id) : null;
   const peerMoved = Boolean(chat?.status === "active" && peer?.identityPub && theirLatest && theirLatest.identityPub !== peer.identityPub);
@@ -291,6 +314,18 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onAuthErr
         </div>
         {chat?.status === "active" ? (
           <>
+            {liveWith || liveAllowed ? (
+              <button
+                type="button"
+                onClick={() => (liveWith ? onLive(liveWith.id) : setStartingLive(true))}
+                aria-label={liveWith ? "Back to the live chat" : "Start a live chat"}
+                title={liveWith ? "Back to the live chat" : "Start a live chat"}
+                className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-field border border-live-line px-2.5 font-mono text-[11px] font-bold text-live ${liveWith ? "bg-live/10" : "border-dashed bg-transparent"}`}
+              >
+                <span className={`size-1.5 rounded-full bg-live ${liveWith ? "shadow-[0_0_0_3px_rgba(127,220,232,0.2)]" : ""}`} aria-hidden="true" />
+                LIVE
+              </button>
+            ) : null}
             <button type="button" onClick={() => onSafety(chat)} aria-label="Safety code" className="grid size-11 shrink-0 place-items-center rounded-field border border-line bg-panel text-ink">
               <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <rect x="4" y="11" width="16" height="10" rx="2" />
@@ -448,6 +483,18 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onAuthErr
           </form>
         </>
       )}
+
+      {startingLive && peer ? (
+        <StartChatSheet
+          userId={userId}
+          peer={peer}
+          liveOnly
+          onStarted={() => setStartingLive(false)}
+          onLiveStarted={(s) => onLive(s.id)}
+          onClose={() => setStartingLive(false)}
+          onAuthError={onAuthError}
+        />
+      ) : null}
 
       {confirmEnd ? (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 px-[18px]">

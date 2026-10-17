@@ -404,6 +404,7 @@ export function App() {
               showBanner({ tag: `chat:${screen.chatId}`, title: "Chat closed", body: text });
             }}
             onSafety={(chat) => setScreen({ name: "safety", chat })}
+            onLive={(sessionId) => setScreen({ name: "live", sessionId })}
             onAuthError={handleAuthError}
           />
         ) : null;
