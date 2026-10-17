@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { AndroidDownload } from "../components/AndroidDownload";
 import { NotificationSettings } from "../components/NotificationSettings";
 import { MyMedia } from "../components/MyMedia";
+import { CallSettings } from "../components/CallSettings";
 import { PageHeader } from "../components/PageHeader";
 import { isNativeApp } from "../lib/platform";
 import type { User } from "../app/types";
@@ -28,6 +29,7 @@ export function SettingsPage({ user, focusApp, onBack, onSecurityLog, onMedia, o
           <p className="m-0 font-mono text-xs text-dim">{user.email}</p>
         </section>
         <NotificationSettings />
+        <CallSettings />
         <MyMedia onOpen={onMedia} />
         <div className="flex flex-col overflow-hidden rounded-2xl border border-line bg-panel">
           <button type="button" onClick={onSecurityLog} className={row}>

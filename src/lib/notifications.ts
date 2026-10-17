@@ -3,7 +3,7 @@ import { isNativeApp } from "./platform";
 
 /** What the server sends on the socket ("notify") for every event. Never any message content. */
 export type Note = {
-  kind: "contact_request" | "contact_added" | "chat_invite" | "chat_accepted" | "chat_declined" | "chat_ended" | "message";
+  kind: "contact_request" | "contact_added" | "chat_invite" | "chat_accepted" | "chat_declined" | "chat_ended" | "live_invite" | "media_request" | "export_request" | "export_answer" | "call" | "message";
   title: string;
   body: string;
   tag: string;

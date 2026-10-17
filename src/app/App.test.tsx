@@ -4,11 +4,19 @@ import { App } from "./App";
 
 const socketHandlers: Record<string, (arg: unknown) => void> = {};
 const emitted: { event: string; payload: unknown }[] = [];
+// Server answers to socket requests (calls)
+const acks: Record<string, (payload: unknown) => unknown> = {};
 vi.mock("socket.io-client", () => ({
   io: () => ({
     connected: true,
     on: (event: string, fn: (arg: unknown) => void) => (socketHandlers[event] = fn),
     emit: (event: string, payload: unknown) => emitted.push({ event, payload }),
+    timeout: () => ({
+      emit: (event: string, payload: unknown, cb: (err: Error | null, reply: unknown) => void) => {
+        emitted.push({ event, payload });
+        cb(null, acks[event]?.(payload) ?? {});
+      },
+    }),
     close: () => {},
   }),
 }));
@@ -663,5 +671,31 @@ describe("live chats", () => {
     fireEvent.click(within(screen.getByRole("dialog", { name: "Export this chat" })).getByRole("checkbox", { name: /^Media/ }));
     fireEvent.click(screen.getByRole("button", { name: "Ask leila.b to approve" }));
     await waitFor(() => expect(calls.find((c) => c.path === `/api/chats/${chatId}/exports` && c.body.period)!.body).toEqual({ messages: true, media: false, period: "7d" }));
+  });
+
+  it("calls: tells the caller kindly when the other person isn't taking calls, and shows an incoming call", async () => {
+    const chatId = "c".repeat(24);
+    const ck = (userId: string) => ({ ...key(userId), version: 1 });
+    const stored = { id: chatId, with: { ...leila, lastSeenAt: null }, mode: "keep", retentionMinutes: 1440, status: "active", createdByMe: true, invitedAt: new Date().toISOString(), inviteExpiresAt: null, acceptedAt: new Date().toISOString(), lastMessageAt: null, unread: 0, keys: [ck(me.id), ck(leila.id)] };
+    routes["/api/chats"] = () => [200, { chats: [stored] }];
+    routes[`/api/chats/${chatId}`] = () => [200, { chat: stored }];
+    routes[`/api/chats/${chatId}/messages`] = () => [200, { messages: [], me: me.id }];
+    routes[`/api/chats/options/${leila.id}`] = () => [200, { options: { keepMaxDays: 3, auto: false, live: false, files: "none", export: false } }];
+    acks["call:start"] = () => ({ error: "not_taking_calls" });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Video call" }));
+    expect(await screen.findByText("leila.b isn't taking calls right now")).toBeInTheDocument();
+    expect(screen.getByText(/for their own reasons. That's their choice: you can still write to them/)).toBeInTheDocument();
+    expect(emitted.find((e) => e.event === "call:start")!.payload).toEqual({ to: leila.id, kind: "video" });
+    fireEvent.click(screen.getByRole("button", { name: "Write a message" }));
+    await waitFor(() => expect(screen.queryByText("leila.b isn't taking calls right now")).toBeNull());
+
+    // Someone calls: the call screen rings; declining tells the server
+    socketHandlers["call:incoming"]!({ callId: "d".repeat(24), kind: "video", from: { id: leila.id, username: "leila.b", identityPub: null } });
+    expect(await screen.findByText("// incoming video call")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Decline" }));
+    await waitFor(() => expect(emitted.some((e) => e.event === "call:leave")).toBe(true));
   });
 });

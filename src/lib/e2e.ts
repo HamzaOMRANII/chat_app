@@ -254,3 +254,22 @@ export async function openPiece(key: string, fileId: string, n: number, count: n
   const size = sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES;
   return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(null, sealed.subarray(size), pieceAssociated(fileId, n, count), sealed.subarray(0, size), dec(key));
 }
+
+// ---------- Calls: each side signs its WebRTC offer/answer (it carries the DTLS fingerprint) ----------
+
+const callStatement = (callId: string, type: string, sdp: string) => sodium.from_string(`hchat-call|${callId}|${type}|${sdp}`);
+
+export async function signCall(id: Identity, callId: string, type: string, sdp: string) {
+  await lib();
+  return enc(sodium.crypto_sign_detached(callStatement(callId, type, sdp), dec(id.signSec)));
+}
+
+/** True when the offer/answer was signed by this identity: nobody in between swapped the connection. */
+export async function verifyCall(identityPub: string, callId: string, type: string, sdp: string, sig: string) {
+  await lib();
+  try {
+    return sodium.crypto_sign_verify_detached(dec(sig), callStatement(callId, type, sdp), dec(identityPub));
+  } catch {
+    return false;
+  }
+}
