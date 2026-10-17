@@ -7,6 +7,7 @@ import { ClosedPage } from "../pages/ClosedPage";
 import { CodePage } from "../pages/CodePage";
 import { AddContactPage } from "../pages/AddContactPage";
 import { ChatPage } from "../pages/ChatPage";
+import { LivePage } from "../pages/LivePage";
 import { SafetyPage } from "../pages/SafetyPage";
 import { prepareDevice } from "../lib/chats";
 import { CHAT_EVENTS, live } from "../lib/live";
@@ -54,13 +55,13 @@ keepPendingAdd();
 
 // A browser notification opened a new tab on /#chat=… or /#contact=…: go there once signed in.
 let pendingOpen: Note["open"] = openFromUrl(location.hash);
-if (pendingOpen.chatId || pendingOpen.userId) history.replaceState(null, "", location.pathname + location.search);
+if (pendingOpen.chatId || pendingOpen.userId || pendingOpen.liveId) history.replaceState(null, "", location.pathname + location.search);
 void registerServiceWorker();
 
 /** Is the app on screen (not a hidden tab, not an app in the background)? */
 const onScreenNow = () => (typeof document === "undefined" ? true : document.visibilityState === "visible");
 
-const SIGNED_IN_SCREENS = new Set<Screen["name"]>(["home", "myId", "add", "contact", "settings", "security", "chat", "safety"]);
+const SIGNED_IN_SCREENS = new Set<Screen["name"]>(["home", "myId", "add", "contact", "settings", "security", "chat", "live", "safety"]);
 
 export function App() {
   const [screen, setScreen] = useState<Screen>({ name: "loading" });
@@ -86,6 +87,7 @@ export function App() {
   /** Where a notification leads: the chat, the contact, or the contacts list. */
   const openTarget = useCallback((open: Note["open"]) => {
     if (open.chatId) return setScreen({ name: "chat", chatId: open.chatId });
+    if (open.liveId) return setScreen({ name: "live", sessionId: open.liveId });
     if (open.userId) {
       return void api<{ contact: Contact }>(`/api/contacts/${open.userId}`)
         .then(({ contact }) => setScreen({ name: "contact", contact }))
@@ -120,7 +122,7 @@ export function App() {
       if (pendingAdd) return setScreen({ name: "add", initialId: pendingAdd });
       const open = pendingOpen;
       pendingOpen = {};
-      if (open.chatId || open.userId) return openTarget(open);
+      if (open.chatId || open.userId || open.liveId) return openTarget(open);
       setScreen({ name: "home" });
     },
     [openTarget],
@@ -190,9 +192,11 @@ export function App() {
         return;
       }
       const current = screenRef.current;
-      const here = current.name === "chat" && note.tag === `chat:${current.chatId}`;
+      const here = (current.name === "chat" && note.tag === `chat:${current.chatId}`) || (current.name === "live" && note.tag === `live:${current.sessionId}`);
       // The open chat shows its own messages; an accepted chat opens by itself
       if ((note.kind === "message" && here) || note.kind === "chat_accepted") return;
+      // The live chat on screen says itself that it ended
+      if (here && (note.kind === "chat_ended" || note.kind === "chat_declined")) return;
       if ((note.kind === "chat_ended" || note.kind === "chat_declined") && Date.now() - (closedHere.current.get(note.tag) ?? 0) < 15_000) return;
       showBanner({ tag: note.tag, title: note.title, body: note.body, who: note.title, onOpen: () => openTarget(note.open) });
     });
@@ -203,6 +207,16 @@ export function App() {
         showBanner({ tag: `chat:${chatId}`, title: "Chat accepted", body: "Tap to open it.", onOpen: () => openTarget({ chatId }) });
       } else if (current.name !== "safety") {
         setScreen({ name: "chat", chatId });
+      }
+    });
+    // They accepted my live invitation: open it, unless I'm in another chat
+    socket.on("live:accepted", ({ sessionId }: { sessionId: string }) => {
+      const current = screenRef.current;
+      if (current.name === "live" && current.sessionId === sessionId) return;
+      if (current.name === "chat" || current.name === "live") {
+        showBanner({ tag: `live:${sessionId}`, title: "Live chat accepted", body: "Tap to go live.", onOpen: () => openTarget({ liveId: sessionId }) });
+      } else if (current.name !== "safety") {
+        setScreen({ name: "live", sessionId });
       }
     });
     socket.on("session:revoked", (event: { reason: string; by?: Closed["by"] }) => {
@@ -218,7 +232,7 @@ export function App() {
     for (const event of CHAT_EVENTS) {
       socket.on(event, (payload: unknown) => {
         live.dispatch(event, payload);
-        if (event !== "typing" && event !== "msg:status") setContactsVersion((v) => v + 1);
+        if (event !== "typing" && event !== "msg:status" && event !== "live" && event !== "live:peer") setContactsVersion((v) => v + 1);
       });
     }
     live.attach(socket);
@@ -333,6 +347,7 @@ export function App() {
             onAdd={() => setScreen({ name: "add" })}
             onOpen={(contact) => setScreen({ name: "contact", contact })}
             onOpenChat={(chatId) => setScreen({ name: "chat", chatId })}
+            onOpenLive={(sessionId) => setScreen({ name: "live", sessionId })}
             onSettings={() => setScreen({ name: "settings" })}
             onGetApp={() => setScreen({ name: "settings", focus: "app" })}
             onAuthError={handleAuthError}
@@ -357,6 +372,22 @@ export function App() {
             version={contactsVersion}
             onBack={home}
             onChat={(chatId) => setScreen({ name: "chat", chatId })}
+            onLive={(sessionId) => setScreen({ name: "live", sessionId })}
+            onAuthError={handleAuthError}
+          />
+        ) : null;
+      case "live":
+        return user ? (
+          <LivePage
+            key={screen.sessionId}
+            sessionId={screen.sessionId}
+            userId={user.id}
+            onBack={home}
+            onClosed={(title, text) => {
+              closedHere.current.set(`live:${screen.sessionId}`, Date.now());
+              home();
+              showBanner({ tag: `live:${screen.sessionId}`, title, body: text });
+            }}
             onAuthError={handleAuthError}
           />
         ) : null;
@@ -373,6 +404,7 @@ export function App() {
               showBanner({ tag: `chat:${screen.chatId}`, title: "Chat closed", body: text });
             }}
             onSafety={(chat) => setScreen({ name: "safety", chat })}
+            onLive={(sessionId) => setScreen({ name: "live", sessionId })}
             onAuthError={handleAuthError}
           />
         ) : null;
@@ -398,6 +430,7 @@ function parentScreen(screen: Screen): Screen | null {
     case "contact":
     case "settings":
     case "chat":
+    case "live":
       return { name: "home" };
     case "safety":
       return { name: "chat", chatId: screen.chat.id };

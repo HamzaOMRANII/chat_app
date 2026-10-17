@@ -30,6 +30,7 @@ export type Screen =
   | { name: "contact"; contact: Contact }
   | { name: "settings"; focus?: "app" }
   | { name: "chat"; chatId: string }
+  | { name: "live"; sessionId: string }
   | { name: "safety"; chat: Chat }
   | { name: "security" }
   | { name: "closed"; closed: Closed };
