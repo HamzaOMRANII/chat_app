@@ -134,7 +134,9 @@ function sharedKey(mySecret: string, myKey: PublishedKey, theirKey: PublishedKey
 const associated = (chatId: string, senderId: string, senderVersion: number, recipientVersion: number) =>
   sodium.from_string(`hchat-msg|${chatId}|${senderId}|${senderVersion}|${recipientVersion}`);
 
-export type Plain = { t: string };
+/** A file sent with a message: what's needed to fetch, open and show it. Only inside the encrypted message. */
+export type FileRef = { id: string; name: string; mime: string; size: number; key: string; chunks: number };
+export type Plain = { t: string; f?: FileRef };
 
 export async function encryptMessage(opts: { userId: string; chatId: string; myKey: PublishedKey; theirKey: PublishedKey; plain: Plain }) {
   await lib();
@@ -223,4 +225,32 @@ export async function openLive(opts: { secret: string; sessionId: string; sender
   } catch {
     return null;
   }
+}
+
+// ---------- Files: a random key per file, each piece sealed on its own ----------
+
+/** A new key for one file (it travels inside the end-to-end encrypted message). */
+export async function newFileKey() {
+  await lib();
+  return enc(sodium.crypto_aead_xchacha20poly1305_ietf_keygen());
+}
+
+const pieceAssociated = (fileId: string, n: number, count: number) => sodium.from_string(`hchat-file|${fileId}|${n}|${count}`);
+
+/** Piece n of count: nonce (24 bytes) followed by the ciphertext. */
+export async function sealPiece(key: string, fileId: string, n: number, count: number, data: Uint8Array) {
+  await lib();
+  const nonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
+  const cipher = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(data, pieceAssociated(fileId, n, count), null, nonce, dec(key));
+  const out = new Uint8Array(nonce.length + cipher.length);
+  out.set(nonce);
+  out.set(cipher, nonce.length);
+  return out;
+}
+
+/** Opens piece n; throws if it was tampered with, swapped or cut. */
+export async function openPiece(key: string, fileId: string, n: number, count: number, sealed: Uint8Array) {
+  await lib();
+  const size = sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES;
+  return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(null, sealed.subarray(size), pieceAssociated(fileId, n, count), sealed.subarray(0, size), dec(key));
 }

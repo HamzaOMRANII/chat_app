@@ -8,6 +8,7 @@ import { CodePage } from "../pages/CodePage";
 import { AddContactPage } from "../pages/AddContactPage";
 import { ChatPage } from "../pages/ChatPage";
 import { LivePage } from "../pages/LivePage";
+import { MediaPage } from "../pages/MediaPage";
 import { SafetyPage } from "../pages/SafetyPage";
 import { prepareDevice } from "../lib/chats";
 import { CHAT_EVENTS, live } from "../lib/live";
@@ -55,13 +56,13 @@ keepPendingAdd();
 
 // A browser notification opened a new tab on /#chat=… or /#contact=…: go there once signed in.
 let pendingOpen: Note["open"] = openFromUrl(location.hash);
-if (pendingOpen.chatId || pendingOpen.userId || pendingOpen.liveId) history.replaceState(null, "", location.pathname + location.search);
+if (pendingOpen.chatId || pendingOpen.userId || pendingOpen.liveId || pendingOpen.media) history.replaceState(null, "", location.pathname + location.search);
 void registerServiceWorker();
 
 /** Is the app on screen (not a hidden tab, not an app in the background)? */
 const onScreenNow = () => (typeof document === "undefined" ? true : document.visibilityState === "visible");
 
-const SIGNED_IN_SCREENS = new Set<Screen["name"]>(["home", "myId", "add", "contact", "settings", "security", "chat", "live", "safety"]);
+const SIGNED_IN_SCREENS = new Set<Screen["name"]>(["home", "myId", "add", "contact", "settings", "security", "chat", "live", "media", "safety"]);
 
 export function App() {
   const [screen, setScreen] = useState<Screen>({ name: "loading" });
@@ -88,6 +89,7 @@ export function App() {
   const openTarget = useCallback((open: Note["open"]) => {
     if (open.chatId) return setScreen({ name: "chat", chatId: open.chatId });
     if (open.liveId) return setScreen({ name: "live", sessionId: open.liveId });
+    if (open.media) return setScreen({ name: "media" });
     if (open.userId) {
       return void api<{ contact: Contact }>(`/api/contacts/${open.userId}`)
         .then(({ contact }) => setScreen({ name: "contact", contact }))
@@ -122,7 +124,7 @@ export function App() {
       if (pendingAdd) return setScreen({ name: "add", initialId: pendingAdd });
       const open = pendingOpen;
       pendingOpen = {};
-      if (open.chatId || open.userId || open.liveId) return openTarget(open);
+      if (open.chatId || open.userId || open.liveId || open.media) return openTarget(open);
       setScreen({ name: "home" });
     },
     [openTarget],
@@ -232,7 +234,7 @@ export function App() {
     for (const event of CHAT_EVENTS) {
       socket.on(event, (payload: unknown) => {
         live.dispatch(event, payload);
-        if (event !== "typing" && event !== "msg:status" && event !== "live" && event !== "live:peer") setContactsVersion((v) => v + 1);
+        if (event !== "typing" && event !== "msg:status" && event !== "live" && event !== "live:peer" && event !== "files:deleted") setContactsVersion((v) => v + 1);
       });
     }
     live.attach(socket);
@@ -348,6 +350,7 @@ export function App() {
             onOpen={(contact) => setScreen({ name: "contact", contact })}
             onOpenChat={(chatId) => setScreen({ name: "chat", chatId })}
             onOpenLive={(sessionId) => setScreen({ name: "live", sessionId })}
+            onOpenMedia={() => setScreen({ name: "media" })}
             onSettings={() => setScreen({ name: "settings" })}
             onGetApp={() => setScreen({ name: "settings", focus: "app" })}
             onAuthError={handleAuthError}
@@ -373,6 +376,16 @@ export function App() {
             onBack={home}
             onChat={(chatId) => setScreen({ name: "chat", chatId })}
             onLive={(sessionId) => setScreen({ name: "live", sessionId })}
+            onAuthError={handleAuthError}
+          />
+        ) : null;
+      case "media":
+        return user ? (
+          <MediaPage
+            key={screen.chatId ?? "all"}
+            chatId={screen.chatId}
+            userId={user.id}
+            onBack={() => setScreen(screen.chatId ? { name: "chat", chatId: screen.chatId } : { name: "home" })}
             onAuthError={handleAuthError}
           />
         ) : null;
@@ -404,6 +417,7 @@ export function App() {
               showBanner({ tag: `chat:${screen.chatId}`, title: "Chat closed", body: text });
             }}
             onSafety={(chat) => setScreen({ name: "safety", chat })}
+            onMedia={(chatId) => setScreen({ name: "media", chatId })}
             onLive={(sessionId) => setScreen({ name: "live", sessionId })}
             onAuthError={handleAuthError}
           />
@@ -412,7 +426,7 @@ export function App() {
         return user ? <SafetyPage chat={screen.chat} userId={user.id} onBack={() => setScreen({ name: "chat", chatId: screen.chat.id })} /> : null;
       case "settings":
         return user ? (
-          <SettingsPage user={user} focusApp={screen.focus === "app"} onBack={home} onSecurityLog={() => setScreen({ name: "security" })} onSignOut={signOut} />
+          <SettingsPage user={user} focusApp={screen.focus === "app"} onBack={home} onSecurityLog={() => setScreen({ name: "security" })} onMedia={() => setScreen({ name: "media" })} onSignOut={signOut} />
         ) : null;
       case "security":
         return <SecurityLogPage onBack={() => setScreen({ name: "settings" })} onAuthError={handleAuthError} />;
@@ -432,6 +446,8 @@ function parentScreen(screen: Screen): Screen | null {
     case "chat":
     case "live":
       return { name: "home" };
+    case "media":
+      return screen.chatId ? { name: "chat", chatId: screen.chatId } : { name: "home" };
     case "safety":
       return { name: "chat", chatId: screen.chat.id };
     case "security":

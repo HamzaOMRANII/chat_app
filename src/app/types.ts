@@ -31,6 +31,7 @@ export type Screen =
   | { name: "settings"; focus?: "app" }
   | { name: "chat"; chatId: string }
   | { name: "live"; sessionId: string }
+  | { name: "media"; chatId?: string }
   | { name: "safety"; chat: Chat }
   | { name: "security" }
   | { name: "closed"; closed: Closed };

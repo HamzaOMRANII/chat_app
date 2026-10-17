@@ -64,3 +64,32 @@ export async function api<T = Record<string, unknown>>(path: string, options: { 
   }
   return data as T;
 }
+
+/** Raw bytes to or from the API (encrypted file pieces). Errors as in api(). */
+export async function apiBytes(path: string, options: { method?: "GET" | "PUT"; body?: Uint8Array; signal?: AbortSignal } = {}): Promise<ArrayBuffer> {
+  const headers: Record<string, string> = {};
+  if (options.body) headers["Content-Type"] = "application/octet-stream";
+  if (isNativeApp) {
+    headers["X-Client"] = "android";
+    const token = tokenStore.get();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  }
+  let res: Response;
+  try {
+    res = await fetch(serverUrl(path), {
+      method: options.method ?? (options.body ? "PUT" : "GET"),
+      headers,
+      credentials: isNativeApp ? "omit" : "same-origin",
+      body: options.body as BodyInit | undefined,
+      signal: options.signal,
+    });
+  } catch (err) {
+    if (options.signal?.aborted) throw err;
+    throw new ApiError(0, "network", "No connection to H_CHAT. Check your internet and try again.");
+  }
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    throw new ApiError(res.status, String(data.code ?? "error"), String(data.error ?? "Something went wrong"));
+  }
+  return res.arrayBuffer();
+}

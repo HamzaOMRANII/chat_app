@@ -1,15 +1,16 @@
 import { useEffect } from "react";
 import { AndroidDownload } from "../components/AndroidDownload";
 import { NotificationSettings } from "../components/NotificationSettings";
+import { MyMedia } from "../components/MyMedia";
 import { PageHeader } from "../components/PageHeader";
 import { isNativeApp } from "../lib/platform";
 import type { User } from "../app/types";
 
 const row = "flex min-h-[54px] w-full items-center gap-3 bg-transparent px-4 text-left text-[15px] font-semibold text-ink hover:bg-raised";
 
-type Props = { user: User; focusApp?: boolean; onBack: () => void; onSecurityLog: () => void; onSignOut: () => void };
+type Props = { user: User; focusApp?: boolean; onBack: () => void; onSecurityLog: () => void; onMedia: () => void; onSignOut: () => void };
 
-export function SettingsPage({ user, focusApp, onBack, onSecurityLog, onSignOut }: Props) {
+export function SettingsPage({ user, focusApp, onBack, onSecurityLog, onMedia, onSignOut }: Props) {
   // From the header's "Get the Android app" button: bring the download card into view once it has loaded
   useEffect(() => {
     if (!focusApp) return;
@@ -27,6 +28,7 @@ export function SettingsPage({ user, focusApp, onBack, onSecurityLog, onSignOut 
           <p className="m-0 font-mono text-xs text-dim">{user.email}</p>
         </section>
         <NotificationSettings />
+        <MyMedia onOpen={onMedia} />
         <div className="flex flex-col overflow-hidden rounded-2xl border border-line bg-panel">
           <button type="button" onClick={onSecurityLog} className={row}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

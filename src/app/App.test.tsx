@@ -35,6 +35,9 @@ vi.mock("../lib/e2e", () => ({
   markSafetyChecked: () => {},
   sealLive: async ({ plain }: { plain: unknown }) => ({ nonce: "N".repeat(32), ct: btoa(JSON.stringify(plain)) }),
   openLive: async ({ ct }: { ct: string }) => JSON.parse(atob(ct)),
+  newFileKey: async () => "K".repeat(43) + "=",
+  sealPiece: async (_k: string, _id: string, _n: number, _c: number, data: Uint8Array) => new Uint8Array(data.length + 40),
+  openPiece: async (_k: string, _id: string, _n: number, _c: number, sealed: Uint8Array) => sealed.subarray(40),
 }));
 
 type Route = (body: Record<string, unknown>) => [number, Record<string, unknown>];
@@ -50,15 +53,18 @@ beforeEach(() => {
     "/api/contacts": () => [200, { contacts: [], incoming: [], outgoing: [] }],
     "/api/chats": () => [200, { chats: [] }],
     "/api/live": () => [200, { live: [] }],
+    "/api/media": () => [200, { used: 0, files: 0, limit: 2 * 1024 ** 3, maxFile: 100 * 1024 ** 2, request: null, chats: [] }],
     "/api/keys/identity": () => [200, { changed: false }],
   };
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       const path = url.replace(/^https?:\/\/[^/]+/, "");
-      const body = init?.body ? JSON.parse(String(init.body)) : {};
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : init?.body ? { bytes: (init.body as Uint8Array).length } : {};
       calls.push({ path, body });
-      const [status, data] = routes[path]?.(body) ?? [404, { error: "Not found" }];
+      const fallback = (): [number, Record<string, unknown>] =>
+        /^\/api\/chats\/[a-f0-9]{24}\/files$/.test(path) ? [200, { files: [] }] : [404, { error: "Not found" }];
+      const [status, data] = routes[path]?.(body) ?? fallback();
       return new Response(JSON.stringify(data), { status });
     }),
   );
@@ -557,5 +563,61 @@ describe("live chats", () => {
     expect(screen.queryByText("Keep-alive")).toBeNull(); // the stored chat is already there
     fireEvent.click(screen.getByRole("button", { name: "Invite to a live chat" }));
     expect(await screen.findByText("Waiting for leila.b")).toBeInTheDocument();
+  });
+
+  it("sends a file encrypted in pieces, shows files and removed ones, and the admin's download request", async () => {
+    const chatId = "c".repeat(24);
+    const fileId = "f".repeat(24);
+    const ck = (userId: string) => ({ ...key(userId), version: 1 });
+    const stored = { id: chatId, with: { ...leila, lastSeenAt: null }, mode: "keep", retentionMinutes: 4320, status: "active", createdByMe: true, invitedAt: new Date().toISOString(), inviteExpiresAt: null, acceptedAt: new Date().toISOString(), lastMessageAt: null, unread: 0, keys: [ck(me.id), ck(leila.id)] };
+    const wire = (id: string, plain: object) => ({ id, senderId: leila.id, ciphertext: btoa(JSON.stringify(plain)), nonce: "N".repeat(32), senderKeyVersion: 1, recipientKeyVersion: 1, sentAt: new Date().toISOString(), deliveredAt: null, readAt: null, expiresAt: new Date(Date.now() + 864e5).toISOString() });
+    const doc = { id: "e".repeat(24), name: "contract.pdf", mime: "application/pdf", size: 18_600_000, key: "K", chunks: 5 };
+    const gone = { id: "a".repeat(24), name: "site-visit.mp4", mime: "video/mp4", size: 91_000_000, key: "K", chunks: 23 };
+    routes["/api/media"] = () => [200, { used: 1_620_000_000, files: 23, limit: 2 * 1024 ** 3, maxFile: 100 * 1024 ** 2, request: { deadline: new Date(Date.now() + 3 * 864e5).toISOString() }, chats: [] }];
+    routes["/api/chats"] = () => [200, { chats: [stored] }];
+    routes[`/api/chats/${chatId}`] = () => [200, { chat: stored }];
+    routes[`/api/chats/${chatId}/messages`] = (body) => (body.ciphertext ? [201, { message: { ...wire("m9", {}), senderId: me.id, id: "m9", fileId } }] : [200, { messages: [wire("m1", { t: "", f: doc }), wire("m2", { t: "", f: gone })], me: me.id }]);
+    routes[`/api/chats/${chatId}/receipts`] = () => [200, { delivered: 0, read: 0 }];
+    routes[`/api/chats/${chatId}/files`] = (body) =>
+      body.size
+        ? [201, { file: { id: fileId, chunks: 1, chunkSize: 4 * 1024 * 1024 } }]
+        : [200, { files: [{ id: doc.id, status: "ready" }, { id: gone.id, status: "deleted", deletedReason: "removed_by_admin" }] }];
+    routes[`/api/files/${fileId}/chunks/0`] = () => [200, { received: 1, chunks: 1 }];
+    routes[`/api/chats/options/${leila.id}`] = () => [200, { options: { keepMaxDays: 7, auto: true, live: true, files: "all", export: true } }];
+
+    render(<App />);
+    // The administrator's request, on the contacts list
+    expect(await screen.findByText("Download your media")).toBeInTheDocument();
+    expect(screen.getByText(/23 files/)).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
+    expect(await screen.findByText("contract.pdf")).toBeInTheDocument();
+    expect(screen.getByText(/site-visit.mp4 · removed by an administrator/)).toBeInTheDocument();
+    expect(screen.getByText(/messages and files are deleted 3 days after they're sent/)).toBeInTheDocument();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Attach a file" })).not.toBeDisabled());
+    fireEvent.click(screen.getByRole("button", { name: "Attach a file" }));
+    expect(await screen.findByText("Send a file to leila.b")).toBeInTheDocument();
+    const picked = new File(["%PDF-1.4 signed"], "signed.pdf", { type: "application/pdf" });
+    fireEvent.change(screen.getByLabelText("Choose documents"), { target: { files: [picked] } });
+    await waitFor(() => expect(calls.some((c) => c.path === `/api/chats/${chatId}/messages` && c.body.fileId === fileId)).toBe(true));
+    expect(calls.find((c) => c.path === `/api/chats/${chatId}/files` && c.body.size)!.body).toEqual({ kind: "document", size: picked.size });
+    expect(calls.find((c) => c.path === `/api/files/${fileId}/chunks/0`)!.body).toEqual({ bytes: picked.size + 40 });
+    const sentPlain = JSON.parse(atob(calls.find((c) => c.body.fileId === fileId)!.body.ciphertext as string));
+    expect(sentPlain.f).toMatchObject({ id: fileId, name: "signed.pdf", mime: "application/pdf", chunks: 1 });
+    expect(await screen.findByText("signed.pdf")).toBeInTheDocument();
+  });
+
+  it("refuses files where the contact's rules don't allow them", async () => {
+    const chatId = "c".repeat(24);
+    const ck = (userId: string) => ({ ...key(userId), version: 1 });
+    const stored = { id: chatId, with: { ...leila, lastSeenAt: null }, mode: "keep", retentionMinutes: 1440, status: "active", createdByMe: true, invitedAt: new Date().toISOString(), inviteExpiresAt: null, acceptedAt: new Date().toISOString(), lastMessageAt: null, unread: 0, keys: [ck(me.id), ck(leila.id)] };
+    routes["/api/chats"] = () => [200, { chats: [stored] }];
+    routes[`/api/chats/${chatId}`] = () => [200, { chat: stored }];
+    routes[`/api/chats/${chatId}/messages`] = () => [200, { messages: [], me: me.id }];
+    routes[`/api/chats/options/${leila.id}`] = () => [200, { options: { keepMaxDays: 3, auto: false, live: false, files: "none", export: false } }];
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
+    expect(await screen.findByRole("button", { name: "Files aren't allowed with this contact" })).toBeDisabled();
   });
 });
