@@ -3,8 +3,14 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { App } from "./App";
 
 const socketHandlers: Record<string, (arg: unknown) => void> = {};
+const emitted: { event: string; payload: unknown }[] = [];
 vi.mock("socket.io-client", () => ({
-  io: () => ({ on: (event: string, fn: (arg: unknown) => void) => (socketHandlers[event] = fn), emit: () => {}, close: () => {} }),
+  io: () => ({
+    connected: true,
+    on: (event: string, fn: (arg: unknown) => void) => (socketHandlers[event] = fn),
+    emit: (event: string, payload: unknown) => emitted.push({ event, payload }),
+    close: () => {},
+  }),
 }));
 
 // libsodium can't run in jsdom (separate realm); the real crypto is covered by lib/e2e.test.ts.
@@ -27,6 +33,8 @@ vi.mock("../lib/e2e", () => ({
   safetyCode: async () => Array.from({ length: 12 }, (_, i) => String(10000 + i)),
   safetyChecked: () => null,
   markSafetyChecked: () => {},
+  sealLive: async ({ plain }: { plain: unknown }) => ({ nonce: "N".repeat(32), ct: btoa(JSON.stringify(plain)) }),
+  openLive: async ({ ct }: { ct: string }) => JSON.parse(atob(ct)),
 }));
 
 type Route = (body: Record<string, unknown>) => [number, Record<string, unknown>];
@@ -35,11 +43,13 @@ const calls: { path: string; body: Record<string, unknown> }[] = [];
 
 beforeEach(() => {
   calls.length = 0;
+  emitted.length = 0;
   routes = {
     "/api/auth/me": () => [401, { error: "Sign in to continue", code: "unauthorized" }],
     "/download/latest.json": () => [404, {}],
     "/api/contacts": () => [200, { contacts: [], incoming: [], outgoing: [] }],
     "/api/chats": () => [200, { chats: [] }],
+    "/api/live": () => [200, { live: [] }],
     "/api/keys/identity": () => [200, { changed: false }],
   };
   vi.stubGlobal(
@@ -419,5 +429,105 @@ describe("stored chats", () => {
     expect(await screen.findByText("Waiting for leila.b")).toBeInTheDocument();
     expect(screen.getByText(/each message is deleted 30 minutes after it's sent/)).toBeInTheDocument();
     expect(calls.find((c) => c.path === "/api/chats" && c.body.mode)!.body).toMatchObject({ userId: leila.id, mode: "keep", retentionMinutes: 30 });
+  });
+});
+
+describe("live chats", () => {
+  const me = { id: "1".repeat(24), username: "hamza", email: "hamza@example.com", mustReset: false };
+  const leila = { id: "2".repeat(24), username: "leila.b", online: true, identityPub: "I".repeat(43) + "=" };
+  const key = (userId: string) => ({ userId, pub: "P".repeat(43) + "=", sig: "S".repeat(86) + "==", identityPub: "I".repeat(43) + "=" });
+  const id = "d".repeat(24);
+  const session = (over: Record<string, unknown> = {}) => ({
+    id,
+    with: leila,
+    status: "invited",
+    createdByMe: false,
+    invitedAt: new Date().toISOString(),
+    inviteExpiresAt: new Date(Date.now() + 4 * 60_000 + 12_000).toISOString(),
+    startedAt: null,
+    waitingFor: null,
+    keys: [key(leila.id)],
+    ...over,
+  });
+  const sealed = (plain: object) => ({ sessionId: id, nonce: "N".repeat(32), ct: btoa(JSON.stringify(plain)) });
+
+  beforeEach(() => {
+    routes["/api/auth/me"] = () => [200, { user: me }];
+    routes["/api/contacts"] = () => [200, { contacts: [{ id: leila.id, username: "leila.b", online: true, lastSeenAt: null, since: new Date().toISOString(), via: "invite" }], incoming: [], outgoing: [] }];
+  });
+
+  it("shows the invitation with its 5-minute countdown, goes live, and shows each other's typing", async () => {
+    let status = "invited";
+    routes["/api/live"] = () => [200, { live: [status === "invited" ? session() : session({ status: "active", startedAt: new Date().toISOString(), inviteExpiresAt: null, keys: [key(me.id), key(leila.id)] })] }];
+    routes[`/api/live/${id}/accept`] = () => {
+      status = "active";
+      return [200, { live: session({ status: "active", startedAt: new Date().toISOString(), inviteExpiresAt: null, keys: [key(me.id), key(leila.id)] }) }];
+    };
+    routes[`/api/live/${id}`] = () => [200, { ok: true }];
+
+    render(<App />);
+    expect(await screen.findByText("wants to chat live")).toBeInTheDocument();
+    expect(screen.getByText(/^4:1\d left$/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /wants to chat live/ }));
+    expect(await screen.findByText("leila.b wants to chat live")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Go live" }));
+    expect(await screen.findByText(/nothing is stored · wiped when either of you leaves/)).toBeInTheDocument();
+    expect(calls.find((c) => c.path === `/api/live/${id}/accept`)!.body.key).toBeTruthy();
+
+    // Their draft appears letter by letter, corrections included; a finished line stays
+    await waitFor(() => expect(screen.getByLabelText("Live message")).not.toBeDisabled());
+    socketHandlers["live"]!(sealed({ t: "draft", text: "Total is 4", n: 1 }));
+    expect(await screen.findByText("leila.b is typing live")).toBeInTheDocument();
+    socketHandlers["live"]!(sealed({ t: "draft", text: "Total is", n: 2 }));
+    await screen.findByText("Total is");
+    socketHandlers["live"]!(sealed({ t: "draft", text: "stale", n: 1 })); // out of order: ignored
+    socketHandlers["live"]!(sealed({ t: "line", text: "Total is 42", n: 3 }));
+    expect(await screen.findByText("Total is 42")).toBeInTheDocument();
+    expect(screen.queryByText("leila.b is typing live")).toBeNull();
+    expect(screen.queryByText("stale")).toBeNull();
+
+    // Mine goes out on every keystroke, encrypted
+    type("Live message", "Perfect");
+    await waitFor(() => expect(emitted.some((e) => e.event === "live")).toBe(true));
+    const out = emitted.filter((e) => e.event === "live").at(-1)!.payload as { sessionId: string; ct: string };
+    expect(out.sessionId).toBe(id);
+    expect(JSON.parse(atob(out.ct))).toMatchObject({ t: "draft", text: "Perfect" });
+    expect(screen.getByText(/your draft · leila.b sees it now/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Send the line" }));
+    expect(await screen.findByText("Perfect")).toBeInTheDocument();
+
+    // Their connection drops: writing pauses with the 30 s countdown; then it is wiped
+    socketHandlers["live:peer"]!({ sessionId: id, online: false, deadline: Date.now() + 30_000 });
+    expect(await screen.findByText(/connection dropped/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Live message")).toBeDisabled();
+    socketHandlers["live:ended"]!({ sessionId: id, reason: "connection_lost", by: null });
+    expect(await screen.findByText("Live chat with leila.b ended")).toBeInTheDocument();
+    expect(screen.queryByText("Total is 42")).toBeNull();
+  });
+
+  it("starts a live chat from the contact, then waits for an answer", async () => {
+    let invited = false;
+    routes["/api/live"] = (body) => {
+      if (body.userId) {
+        invited = true;
+        return [201, { live: session({ createdByMe: true, keys: [key(me.id)], inviteExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString() }) }];
+      }
+      return [200, { live: invited ? [session({ createdByMe: true, keys: [key(me.id)], inviteExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString() })] : [] }];
+    };
+    routes[`/api/chats/options/${leila.id}`] = () => [200, { options: { keepMaxDays: 7, auto: true, live: true } }];
+    routes[`/api/contacts/${leila.id}`] = () => [200, { contact: { id: leila.id, username: "leila.b", online: true, lastSeenAt: null, since: new Date().toISOString(), via: "invite" } }];
+    routes[`/api/live/${id}`] = () => [200, { ok: true }];
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start chat" }));
+    fireEvent.click(await screen.findByRole("radio", { name: /Live/ }));
+    expect(screen.getByText("leila.b has 5 minutes to answer")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Invite to a live chat" }));
+    expect(await screen.findByText("Waiting for leila.b")).toBeInTheDocument();
+    expect(screen.getByText(/^(5:0\d|4:5\d)$/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel invitation" }));
+    expect(await screen.findByText("Live chat with leila.b ended")).toBeInTheDocument();
+    expect(calls.some((c) => c.path === `/api/live/${id}`)).toBe(true);
   });
 });

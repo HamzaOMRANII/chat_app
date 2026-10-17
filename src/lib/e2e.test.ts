@@ -13,7 +13,7 @@ globalThis.localStorage = {
     return memory.size;
   },
 } as Storage;
-import { decryptMessage, encryptMessage, forgetChat, identity, keepChatKey, newChatKey, safetyCode, verifyKey, type PublishedKey } from "./e2e";
+import { decryptMessage, encryptMessage, forgetChat, openLive, sealLive, identity, keepChatKey, newChatKey, safetyCode, verifyKey, type PublishedKey } from "./e2e";
 
 beforeEach(() => localStorage.clear());
 
@@ -72,5 +72,23 @@ describe("end-to-end encryption", () => {
     expect(await safetyCode(idB.signPub, idA.signPub)).toEqual(code);
     const moved = await identity("B", "device-b2");
     expect(await safetyCode(idA.signPub, moved.signPub)).not.toEqual(code);
+  });
+});
+
+describe("live chat", () => {
+  it("only the other side opens what is typed, and nothing goes to storage", async () => {
+    const idA = await identity("A", "device-a");
+    const idB = await identity("B", "device-b");
+    const a = await newChatKey(idA, "A", "B");
+    const b = await newChatKey(idB, "B", "A");
+    const keyA: PublishedKey = { userId: "A", version: 1, pub: a.pub, sig: a.sig, identityPub: idA.signPub };
+    const keyB: PublishedKey = { userId: "B", version: 1, pub: b.pub, sig: b.sig, identityPub: idB.signPub };
+    const stored = memory.size;
+    const sealed = await sealLive({ secret: a.secret, sessionId: "live1", userId: "A", myKey: keyA, theirKey: keyB, plain: { t: "draft", text: "hi" } as { t: string } });
+    expect(memory.size).toBe(stored);
+    expect(await openLive({ secret: b.secret, sessionId: "live1", senderId: "A", myKey: keyB, theirKey: keyA, ...sealed })).toMatchObject({ t: "draft", text: "hi" });
+    // Another session, or a forged sender, doesn't open
+    expect(await openLive({ secret: b.secret, sessionId: "live2", senderId: "A", myKey: keyB, theirKey: keyA, ...sealed })).toBeNull();
+    expect(await openLive({ secret: b.secret, sessionId: "live1", senderId: "B", myKey: keyB, theirKey: keyA, ...sealed })).toBeNull();
   });
 });

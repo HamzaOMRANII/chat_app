@@ -5,19 +5,24 @@ import { api, ApiError } from "../lib/api";
 import { lastSeen, type Contact } from "../lib/contacts";
 import { StartChatSheet } from "../components/StartChatSheet";
 import type { Chat } from "../lib/chats";
+import type { LiveSession } from "../lib/liveChat";
 
-type Props = { contact: Contact; userId: string; version: number; onBack: () => void; onChat: (chatId: string) => void; onAuthError: (err: unknown) => boolean };
+type Props = { contact: Contact; userId: string; version: number; onBack: () => void; onChat: (chatId: string) => void; onLive: (sessionId: string) => void; onAuthError: (err: unknown) => boolean };
 
-export function ContactPage({ contact: initial, userId, version, onBack, onChat, onAuthError }: Props) {
+export function ContactPage({ contact: initial, userId, version, onBack, onChat, onLive, onAuthError }: Props) {
   const [contact, setContact] = useState(initial);
   const [confirm, setConfirm] = useState<"remove" | "block" | null>(null);
   const [error, setError] = useState("");
   const [chat, setChat] = useState<Chat | null>(null);
-  const [starting, setStarting] = useState(false);
+  const [liveChat, setLiveChat] = useState<LiveSession | null>(null);
+  const [starting, setStarting] = useState<"any" | "live" | null>(null);
 
   useEffect(() => {
     api<{ chats: Chat[] }>("/api/chats")
       .then(({ chats }) => setChat(chats.find((c) => c.with?.id === initial.id) ?? null))
+      .catch(() => {});
+    api<{ live: LiveSession[] }>("/api/live")
+      .then(({ live }) => setLiveChat(live.find((s) => s.with?.id === initial.id) ?? null))
       .catch(() => {});
   }, [initial.id, version]);
 
@@ -64,11 +69,21 @@ export function ContactPage({ contact: initial, userId, version, onBack, onChat,
 
         <button
           type="button"
-          onClick={() => (chat ? onChat(chat.id) : setStarting(true))}
+          onClick={() => (chat ? onChat(chat.id) : setStarting("any"))}
           className="min-h-[52px] rounded-[14px] bg-brand text-[15px] font-bold text-white hover:bg-brand-hover"
         >
           {chat ? (chat.status === "active" ? "Open chat" : chat.createdByMe ? "Invitation sent · open" : "Chat invitation · open") : "Start chat"}
         </button>
+
+        {liveChat ? (
+          <button type="button" onClick={() => onLive(liveChat.id)} className="min-h-12 rounded-[14px] border border-live-line bg-live/[0.07] text-[14.5px] font-bold text-live">
+            {liveChat.status === "active" ? "Back to the live chat" : liveChat.createdByMe ? "Live invitation sent · open" : "Live invitation · open"}
+          </button>
+        ) : chat ? (
+          <button type="button" onClick={() => setStarting("live")} className="min-h-12 rounded-[14px] border border-dashed border-live-line bg-transparent text-[14.5px] font-semibold text-live">
+            Start a live chat
+          </button>
+        ) : null}
 
         {error ? <Notice tone="error">{error}</Notice> : null}
         <div className="grow" />
@@ -108,7 +123,15 @@ export function ContactPage({ contact: initial, userId, version, onBack, onChat,
         )}
       </div>
       {starting ? (
-        <StartChatSheet userId={userId} peer={contact} onStarted={(c) => onChat(c.id)} onClose={() => setStarting(false)} onAuthError={onAuthError} />
+        <StartChatSheet
+          userId={userId}
+          peer={contact}
+          liveOnly={starting === "live"}
+          onStarted={(c) => onChat(c.id)}
+          onLiveStarted={(s) => onLive(s.id)}
+          onClose={() => setStarting(null)}
+          onAuthError={onAuthError}
+        />
       ) : null}
     </main>
   );

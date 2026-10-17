@@ -26,4 +26,4 @@ export const live = {
   },
 };
 
-export const CHAT_EVENTS = ["msg:new", "msg:status", "typing", "chat:ended", "chat:keys", "chats:changed"] as const;
+export const CHAT_EVENTS = ["msg:new", "msg:status", "typing", "chat:ended", "chat:keys", "chats:changed", "live", "live:peer", "live:ended", "live:changed"] as const;

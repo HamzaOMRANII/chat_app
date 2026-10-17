@@ -6,6 +6,7 @@ import { Notice } from "../components/Screen";
 import { api } from "../lib/api";
 import { modeLabel, type Chat } from "../lib/chats";
 import { isNativeApp } from "../lib/platform";
+import { clock, countdown, type LiveSession } from "../lib/liveChat";
 import { ago, lastSeen, type Contact, type ContactList } from "../lib/contacts";
 import { place, when, type LastLogin } from "../app/types";
 
@@ -17,6 +18,7 @@ type Props = {
   onAdd: () => void;
   onOpen: (contact: Contact) => void;
   onOpenChat: (chatId: string) => void;
+  onOpenLive: (sessionId: string) => void;
   onSettings: () => void;
   /** Web only: Settings, where the Android app download is. */
   onGetApp: () => void;
@@ -33,21 +35,25 @@ export function ContactsPage({
   onAdd,
   onOpen,
   onOpenChat,
+  onOpenLive,
   onSettings,
   onGetApp,
   onAuthError,
 }: Props) {
   const [list, setList] = useState<ContactList | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
+  const [liveChats, setLiveChats] = useState<LiveSession[]>([]);
+  const [now, setNow] = useState(Date.now());
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [showLastLogin, setShowLastLogin] = useState(Boolean(lastLogin));
 
   const load = useCallback(async () => {
     try {
-      const [contacts, open] = await Promise.all([api<ContactList>("/api/contacts"), api<{ chats: Chat[] }>("/api/chats")]);
+      const [contacts, open, running] = await Promise.all([api<ContactList>("/api/contacts"), api<{ chats: Chat[] }>("/api/chats"), api<{ live: LiveSession[] }>("/api/live")]);
       setList(contacts);
       setChats(open.chats);
+      setLiveChats(running.live);
       setError("");
     } catch (err) {
       if (!onAuthError(err))
@@ -59,6 +65,13 @@ export function ContactsPage({
   useEffect(() => {
     void load();
   }, [load, version]);
+  // Countdowns of live invitations and running live chats
+  const ticking = liveChats.length > 0;
+  useEffect(() => {
+    if (!ticking) return;
+    const tick = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(tick);
+  }, [ticking]);
 
   async function answer(id: string, action: "accept" | "decline") {
     setBusy(id);
@@ -73,6 +86,8 @@ export function ContactsPage({
   }
 
   const chatWith = new Map(chats.filter((c) => c.with).map((c) => [c.with!.id, c]));
+  const liveWith = new Map(liveChats.filter((s) => s.with).map((s) => [s.with!.id, s]));
+  const liveInvitations = liveChats.filter((s) => s.status === "invited" && !s.createdByMe && s.with);
   const invitations = chats.filter((c) => c.status === "invited" && !c.createdByMe && c.with);
   const requests = list ? list.incoming.length + list.outgoing.length : 0;
   const online = list?.contacts.filter((c) => c.online).length ?? 0;
@@ -179,6 +194,37 @@ export function ContactsPage({
         ) : null}
         {error ? <Notice tone="error">{error}</Notice> : null}
         <NotificationPrompt />
+
+        {liveInvitations.length ? (
+          <section aria-labelledby="live-invitations" className="flex flex-col gap-2.5">
+            <h2 id="live-invitations" className="eyebrow m-0 text-[11px] font-normal">
+              live invitation{liveInvitations.length > 1 ? "s" : ""}
+            </h2>
+            {liveInvitations.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => onOpenLive(s.id)}
+                className="flex flex-wrap items-center gap-3 rounded-2xl border border-live-line bg-live/[0.06] p-3.5 text-left text-ink"
+              >
+                <Avatar username={s.with!.username} size={40} online={s.with!.online} />
+                <span className="flex min-w-[9rem] flex-1 flex-col gap-1">
+                  <span className="text-[14.5px]">
+                    <strong>{s.with!.username}</strong> wants to chat live
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-live-line px-2 py-px font-mono text-[10.5px] font-bold text-live">
+                      <span className="size-1.5 rounded-full bg-live" />
+                      LIVE
+                    </span>
+                    {s.inviteExpiresAt ? <span className="font-mono text-[11px] text-dim">{countdown(new Date(s.inviteExpiresAt).getTime() - now)} left</span> : null}
+                  </span>
+                </span>
+                <span className="ml-auto rounded-[11px] bg-brand px-3.5 py-2.5 text-[13.5px] font-bold text-white">See</span>
+              </button>
+            ))}
+          </section>
+        ) : null}
 
         {invitations.length ? (
           <section aria-labelledby="invitations" className="flex flex-col gap-2.5">
@@ -316,12 +362,14 @@ export function ContactsPage({
           <ul className="-mx-2 m-0 flex list-none flex-col p-0">
             {list?.contacts.map((c) => {
               const chat = chatWith.get(c.id);
+              const running = liveWith.get(c.id);
+              const liveNow = running?.status === "active";
               const waiting = chat?.status === "invited";
               return (
                 <li key={c.id}>
                   <button
                     type="button"
-                    onClick={() => (chat ? onOpenChat(chat.id) : onOpen(c))}
+                    onClick={() => (running && (liveNow || running.createdByMe) ? onOpenLive(running.id) : chat ? onOpenChat(chat.id) : onOpen(c))}
                     className="flex w-full items-center gap-3.5 rounded-[14px] bg-transparent px-2 py-[11px] text-left text-ink hover:bg-panel"
                   >
                     <Avatar username={c.username} online={c.online} />
@@ -332,8 +380,12 @@ export function ContactsPage({
                           <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-accent px-1.5 font-mono text-[11px] font-bold text-bg">{chat.unread}</span>
                         ) : null}
                       </span>
-                      <span className={`truncate text-[13px] ${chat?.unread ? "font-semibold text-ink-soft" : c.online ? "text-online" : "text-faint"}`}>
-                        {chat?.unread
+                      <span className={`truncate text-[13px] ${liveNow ? "font-semibold text-live" : chat?.unread ? "font-semibold text-ink-soft" : c.online ? "text-online" : "text-faint"}`}>
+                        {liveNow
+                          ? "in a live chat · tap to go back"
+                          : running?.createdByMe
+                            ? "live invitation sent · waiting"
+                            : chat?.unread
                           ? `${chat.unread} new message${chat.unread > 1 ? "s" : ""}`
                           : waiting
                             ? chat.createdByMe
@@ -342,14 +394,20 @@ export function ContactsPage({
                             : lastSeen(c)}
                       </span>
                     </span>
-                    {chat ? (
+                    {chat || running ? (
                       <span className="flex shrink-0 flex-col items-end gap-[5px]">
-                        <span
+                        {running ? (
+                          <span className={`inline-flex items-center gap-1.5 rounded-full border border-live-line px-2 py-px font-mono text-[10.5px] font-bold text-live ${liveNow ? "" : "border-dashed"}`}>
+                            {liveNow ? <span className="size-1.5 rounded-full bg-live shadow-[0_0_0_3px_rgba(127,220,232,0.2)]" /> : null}
+                            LIVE{liveNow && running.startedAt ? ` · ${clock(now - new Date(running.startedAt).getTime())}` : ""}
+                          </span>
+                        ) : null}
+                        {chat ? <span
                           className={`rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${chat.mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep"} ${waiting ? "border-dashed" : ""}`}
                         >
                           {modeLabel(chat)}
-                        </span>
-                        {chat.lastMessageAt ? <span className="font-mono text-[11px] text-faint">{shortWhen(chat.lastMessageAt)}</span> : null}
+                        </span> : null}
+                        {chat?.lastMessageAt ? <span className="font-mono text-[11px] text-faint">{shortWhen(chat.lastMessageAt)}</span> : null}
                       </span>
                     ) : null}
                   </button>

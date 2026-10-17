@@ -198,3 +198,29 @@ export function safetyChecked(userId: string, peerId: string, code: string[]) {
   const saved = store.get<{ code: string; at: string }>(safetyKey(userId, peerId));
   return saved && saved.code === code.join("") ? saved.at : null;
 }
+
+// ---------- Live chat: session keys live in memory only, nothing is written to storage ----------
+
+const liveAssociated = (sessionId: string, senderId: string) => sodium.from_string(`hchat-live|${sessionId}|${senderId}`);
+
+/** What one side types in a live chat, sealed for the other side (the server only relays it). */
+export async function sealLive(opts: { secret: string; sessionId: string; userId: string; myKey: PublishedKey; theirKey: PublishedKey; plain: Plain }) {
+  await lib();
+  const key = sharedKey(opts.secret, opts.myKey, opts.theirKey, opts.sessionId);
+  const nonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
+  const cipher = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(sodium.from_string(JSON.stringify(opts.plain)), liveAssociated(opts.sessionId, opts.userId), null, nonce, key);
+  return { nonce: enc(nonce), ct: enc(cipher) };
+}
+
+/** Opens what the other side sent; null if it doesn't check out. */
+export async function openLive(opts: { secret: string; sessionId: string; senderId: string; myKey: PublishedKey; theirKey: PublishedKey; nonce: string; ct: string }): Promise<Plain | null> {
+  await lib();
+  try {
+    const key = sharedKey(opts.secret, opts.myKey, opts.theirKey, opts.sessionId);
+    const plain = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(null, dec(opts.ct), liveAssociated(opts.sessionId, opts.senderId), dec(opts.nonce), key);
+    const parsed = JSON.parse(sodium.to_string(plain)) as Plain;
+    return typeof parsed.t === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
