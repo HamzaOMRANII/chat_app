@@ -234,7 +234,7 @@ export function App() {
     for (const event of CHAT_EVENTS) {
       socket.on(event, (payload: unknown) => {
         live.dispatch(event, payload);
-        if (event !== "typing" && event !== "msg:status" && event !== "live" && event !== "live:peer" && event !== "files:deleted") setContactsVersion((v) => v + 1);
+        if (event !== "typing" && event !== "msg:status" && event !== "live" && event !== "live:peer" && event !== "files:deleted" && event !== "exports:changed") setContactsVersion((v) => v + 1);
       });
     }
     live.attach(socket);
