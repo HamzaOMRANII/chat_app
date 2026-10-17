@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useViewOnlyProtection } from "../lib/protect";
 import { bytes, canShareFiles, downloadFile, fileUrl, saveBlob, shareBlob, type FileRef } from "../lib/files";
 
 type Props = { file: FileRef; from: string; sentAt?: string; expiresIn?: string; canSave: boolean; viewOnly?: boolean; onClose: () => void };
@@ -8,6 +9,7 @@ export function MediaViewer({ file, from, sentAt, expiresIn, canSave, viewOnly =
   const [url, setUrl] = useState<string | null>(null);
   const [done, setDone] = useState(0);
   const [note, setNote] = useState("");
+  useViewOnlyProtection(viewOnly);
   const [text, setText] = useState<string | null>(null);
   const isText = file.mime.startsWith("text/") || file.mime === "application/json";
   useEffect(() => {
@@ -55,12 +57,19 @@ export function MediaViewer({ file, from, sentAt, expiresIn, canSave, viewOnly =
         </div>
       </header>
       {/* The whole photo or video, fitted to the space left between the top and bottom bars */}
-      <div className="relative grid min-h-0 flex-1 place-items-center overflow-hidden">
+      <div className="relative grid min-h-0 flex-1 place-items-center overflow-hidden" data-view-only={viewOnly ? "" : undefined}>
         {url ? (
           file.mime.startsWith("video/") ? (
-            <video src={url} controls autoPlay className="absolute inset-0 size-full object-contain" />
+            <video
+              src={url}
+              controls
+              autoPlay
+              controlsList={viewOnly ? "nodownload noplaybackrate" : undefined}
+              disablePictureInPicture={viewOnly}
+              className="absolute inset-0 size-full object-contain"
+            />
           ) : file.mime.startsWith("image/") ? (
-            <img src={url} alt={file.name} className="absolute inset-0 size-full object-contain" />
+            <img src={url} alt={file.name} draggable={false} className="absolute inset-0 size-full object-contain" />
           ) : isText ? (
             <pre className="absolute inset-0 m-0 overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-[13px] leading-relaxed text-ink-soft">{text ?? ""}</pre>
           ) : (

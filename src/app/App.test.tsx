@@ -572,16 +572,17 @@ describe("live chats", () => {
     const stored = { id: chatId, with: { ...leila, lastSeenAt: null }, mode: "keep", retentionMinutes: 4320, status: "active", createdByMe: true, invitedAt: new Date().toISOString(), inviteExpiresAt: null, acceptedAt: new Date().toISOString(), lastMessageAt: null, unread: 0, keys: [ck(me.id), ck(leila.id)] };
     const wire = (id: string, plain: object) => ({ id, senderId: leila.id, ciphertext: btoa(JSON.stringify(plain)), nonce: "N".repeat(32), senderKeyVersion: 1, recipientKeyVersion: 1, sentAt: new Date().toISOString(), deliveredAt: null, readAt: null, expiresAt: new Date(Date.now() + 864e5).toISOString() });
     const doc = { id: "e".repeat(24), name: "contract.pdf", mime: "application/pdf", size: 18_600_000, key: "K", chunks: 5 };
+    const secret = { id: "b".repeat(24), name: "notes.txt", mime: "text/plain", size: 900, key: "K", chunks: 1, view: true };
     const gone = { id: "a".repeat(24), name: "site-visit.mp4", mime: "video/mp4", size: 91_000_000, key: "K", chunks: 23 };
     routes["/api/media"] = () => [200, { used: 1_620_000_000, files: 23, limit: 2 * 1024 ** 3, maxFile: 100 * 1024 ** 2, request: { deadline: new Date(Date.now() + 3 * 864e5).toISOString() }, chats: [] }];
     routes["/api/chats"] = () => [200, { chats: [stored] }];
     routes[`/api/chats/${chatId}`] = () => [200, { chat: stored }];
-    routes[`/api/chats/${chatId}/messages`] = (body) => (body.ciphertext ? [201, { message: { ...wire("m9", {}), senderId: me.id, id: "m9", fileId } }] : [200, { messages: [wire("m1", { t: "", f: doc }), wire("m2", { t: "", f: gone })], me: me.id }]);
+    routes[`/api/chats/${chatId}/messages`] = (body) => (body.ciphertext ? [201, { message: { ...wire("m9", {}), senderId: me.id, id: "m9", fileId } }] : [200, { messages: [wire("m1", { t: "", f: doc }), wire("m2", { t: "", f: gone }), wire("m3", { t: "", f: secret })], me: me.id }]);
     routes[`/api/chats/${chatId}/receipts`] = () => [200, { delivered: 0, read: 0 }];
     routes[`/api/chats/${chatId}/files`] = (body) =>
       body.size
         ? [201, { file: { id: fileId, chunks: 1, chunkSize: 4 * 1024 * 1024 } }]
-        : [200, { files: [{ id: doc.id, status: "ready" }, { id: gone.id, status: "deleted", deletedReason: "removed_by_admin" }] }];
+        : [200, { files: [{ id: doc.id, status: "ready" }, { id: gone.id, status: "deleted", deletedReason: "removed_by_admin" }, { id: secret.id, status: "ready" }] }];
     routes[`/api/files/${fileId}/chunks/0`] = () => [200, { received: 1, chunks: 1 }];
     routes[`/api/chats/options/${leila.id}`] = () => [200, { options: { keepMaxDays: 7, auto: true, live: true, files: "all", export: true } }];
 
@@ -593,6 +594,11 @@ describe("live chats", () => {
     fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
     expect(await screen.findByText("contract.pdf")).toBeInTheDocument();
     expect(screen.getByText(/site-visit.mp4 · removed by an administrator/)).toBeInTheDocument();
+    // A view-only file from leila: the page is protected and right-click is blocked on it
+    const shared = screen.getByRole("button", { name: /Open notes.txt/ });
+    expect(shared).toHaveAttribute("data-view-only");
+    expect(document.documentElement).toHaveAttribute("data-protected");
+    expect(fireEvent.contextMenu(shared)).toBe(false);
     expect(screen.getByText(/messages and files are deleted 3 days after they're sent/)).toBeInTheDocument();
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Attach a file" })).not.toBeDisabled());

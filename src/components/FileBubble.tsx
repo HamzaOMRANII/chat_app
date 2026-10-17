@@ -58,8 +58,14 @@ export function FileBubble({ file, info, mine, onOpen }: Props) {
   }
   if (image && url) {
     return (
-      <button type="button" onClick={() => onOpen(file)} aria-label={`Open ${file.name}`} className={`block border border-line bg-raised p-1 ${shape}`}>
-        <img src={url} alt={file.name} className="block max-h-[260px] max-w-[240px] rounded-xl object-cover" />
+      <button
+        type="button"
+        onClick={() => onOpen(file)}
+        aria-label={`Open ${file.name}`}
+        data-view-only={!mine && file.view ? "" : undefined}
+        className={`block border border-line bg-raised p-1 ${shape}`}
+      >
+        <img src={url} alt={file.name} draggable={false} className="block max-h-[260px] max-w-[240px] rounded-xl object-cover" />
       </button>
     );
   }
@@ -81,6 +87,7 @@ export function FileBubble({ file, info, mine, onOpen }: Props) {
       type="button"
       onClick={tap}
       aria-label={`${image ? "Show" : "Open"} ${file.name}`}
+      data-view-only={!mine && file.view ? "" : undefined}
       className={`flex w-[250px] max-w-full flex-col gap-2 border px-3 py-2.5 text-left ${mine ? "border-brand-stripe bg-brand-deep text-white" : "border-line bg-raised text-ink"} ${shape}`}
     >
       <span className="flex items-center gap-3">

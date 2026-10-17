@@ -6,6 +6,7 @@ import { openLive, sealLive, type PublishedKey } from "../lib/e2e";
 import { live } from "../lib/live";
 import { saveBlob } from "../lib/files";
 import { ViewChoice } from "../components/AttachSheet";
+import { useViewOnlyProtection } from "../lib/protect";
 import { acceptLive, clock, countdown, forgetLive, liveKeys, liveSecret, type LiveSession } from "../lib/liveChat";
 
 const MAX_LENGTH = 1000;
@@ -65,6 +66,7 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
   // What the other side may do with the files I send (where the rules allow downloads at all)
   const [viewOnly, setViewOnly] = useState<boolean | null>(null);
   const sendViewOnly = viewOnly ?? !rules?.export;
+  useViewOnlyProtection([...liveFiles.values()].some((f) => !f.mine && f.view && f.state === "done"));
   // Files I offered (waiting for an answer), pieces being received, and the sender's flow control
   const outgoing = useRef(new Map<string, File>());
   const incoming = useRef(new Map<string, Uint8Array[]>());
@@ -573,9 +575,15 @@ function LiveFileCard({ file, peerName, canSave, onAnswer }: { file?: LiveFile; 
   const shape = file.mine ? "self-end rounded-[16px_16px_4px_16px] border-accent bg-accent/[0.08]" : "self-start rounded-[16px_16px_16px_4px] border-live-line bg-live/[0.06]";
   const size = `${(file.size / 1024 / 1024).toFixed(file.size < 10 * 1024 * 1024 ? 1 : 0)} MB`;
   return (
-    <div className={`flex w-[80%] max-w-[340px] flex-col gap-2.5 border border-dashed p-3 ${shape}`}>
-      {file.state === "done" && file.url && media === "image" ? <img src={file.url} alt={file.name} className="max-h-[260px] rounded-xl object-contain" /> : null}
-      {file.state === "done" && file.url && media === "video" ? <video src={file.url} controls className="max-h-[260px] rounded-xl" /> : null}
+    <div data-view-only={!file.mine && file.view ? "" : undefined} className={`flex w-[80%] max-w-[340px] flex-col gap-2.5 border border-dashed p-3 ${shape}`}>
+      {file.state === "done" && file.url && media === "image" ? <img src={file.url} alt={file.name} draggable={false} className="max-h-[260px] rounded-xl object-contain" /> : null}
+      {file.state === "done" && file.url && media === "video" ? <video
+          src={file.url}
+          controls
+          controlsList={!file.mine && file.view ? "nodownload" : undefined}
+          disablePictureInPicture={!file.mine && file.view}
+          className="max-h-[260px] rounded-xl"
+        /> : null}
       <span className="flex flex-col gap-0.5">
         <span className="break-all text-[13.5px] font-bold">
           {file.mine ? "" : `${peerName} sends `}

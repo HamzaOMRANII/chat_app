@@ -11,6 +11,7 @@ import { StartChatSheet } from "../components/StartChatSheet";
 import { AttachSheet } from "../components/AttachSheet";
 import { FileBubble } from "../components/FileBubble";
 import { MediaViewer } from "../components/MediaViewer";
+import { useViewOnlyProtection } from "../lib/protect";
 import { bytes, downloadFile, forgetFiles, saveBlob, uploadFile, type FileInfo, type FileRef } from "../lib/files";
 
 type Shown = { id: string; mine: boolean; text: string | null; file?: FileRef; sentAt: string; deliveredAt: string | null; readAt: string | null; expiresAt: string };
@@ -358,6 +359,8 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
     }
   }
 
+  // A view-only file from the other side is on screen: no screenshots (Android), no right-click (web)
+  useViewOnlyProtection(messages.some((m) => !m.mine && m.file?.view && files.get(m.file.id)?.status !== "deleted"));
   const peer = chat?.with;
   const peerId = chat?.status === "active" ? peer?.id : undefined;
   useEffect(() => {
