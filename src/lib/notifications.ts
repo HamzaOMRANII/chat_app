@@ -22,13 +22,15 @@ export type Permission = "granted" | "denied" | "default" | "unsupported";
 const webSupported = () => typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 export const notificationsSupported = () => isNativeApp || webSupported();
 
+// Capacitor plugin objects answer any property, "then" included: returned from a promise, they'd be awaited as one
+// and never resolve. They always travel wrapped ({ plugin }).
 async function local() {
-  return (await import("@capacitor/local-notifications")).LocalNotifications;
+  return { plugin: (await import("@capacitor/local-notifications")).LocalNotifications };
 }
 
 export async function permission(): Promise<Permission> {
   if (isNativeApp) {
-    const { display } = await (await local()).checkPermissions();
+    const { display } = await (await local()).plugin.checkPermissions();
     return display === "granted" ? "granted" : display === "denied" ? "denied" : "default";
   }
   if (!webSupported()) return "unsupported";
@@ -72,7 +74,7 @@ async function subscribeWeb() {
 // ---------- Android app closed: Firebase Cloud Messaging ----------
 let fcmActive = false;
 const fcmHandles: { remove: () => Promise<void> }[] = [];
-const push = () => import("@capacitor/push-notifications").then((m) => m.PushNotifications);
+const push = () => import("@capacitor/push-notifications").then((m) => ({ plugin: m.PushNotifications }));
 
 /** Where Firebase registration stands on this phone, shown in Settings (and reported to the server to help). */
 export type FcmStatus = { state: "off" | "working" | "on" | "error"; detail: string };
@@ -98,7 +100,7 @@ export async function registerFcm(ask = false) {
   if (!isNativeApp) return false;
   setFcm("working", "checking the permission");
   try {
-    const p = await push();
+    const p = (await push()).plugin;
     let perm = (await p.checkPermissions()).receive;
     if (perm !== "granted" && ask) perm = (await p.requestPermissions()).receive;
     if (perm !== "granted") {
@@ -135,7 +137,7 @@ export async function registerFcm(ask = false) {
 /** Asks for permission (from a tap) and turns notifications on for this device. */
 export async function enableNotifications(): Promise<Permission> {
   if (isNativeApp) {
-    const { display } = await (await local()).requestPermissions();
+    const { display } = await (await local()).plugin.requestPermissions();
     if (display === "granted") void registerFcm(true);
     return display === "granted" ? "granted" : display === "denied" ? "denied" : "default";
   }
@@ -157,7 +159,7 @@ let nextId = 1;
 export async function showOnPhone(note: Note) {
   // With Firebase, the same event already arrives as a phone notification: don't show it twice
   if (!isNativeApp || fcmActive) return;
-  const notifications = await local();
+  const notifications = (await local()).plugin;
   await notifications.schedule({
     notifications: [{ id: nextId++, title: note.title, body: note.body, group: note.tag, extra: { open: note.open } }],
   });
@@ -167,12 +169,12 @@ export async function showOnPhone(note: Note) {
 export function onNotificationTap(go: (open: Note["open"]) => void) {
   const cleanups: (() => void)[] = [];
   if (isNativeApp) {
-    void local().then((n) =>
+    void local().then(({ plugin: n }) =>
       n
         .addListener("localNotificationActionPerformed", ({ notification }) => go((notification.extra as { open?: Note["open"] } | undefined)?.open ?? {}))
         .then((handle) => cleanups.push(() => void handle.remove())),
     );
-    void push().then((p) =>
+    void push().then(({ plugin: p }) =>
       p
         .addListener("pushNotificationActionPerformed", ({ notification }) => go(openFromUrl(String((notification.data as { url?: string } | undefined)?.url ?? "/"))))
         .then((handle) => cleanups.push(() => void handle.remove())),
