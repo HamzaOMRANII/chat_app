@@ -123,3 +123,9 @@ export async function shareBlob(blob: Blob, name: string) {
 export const canShareFiles = isNativeApp || (typeof navigator !== "undefined" && typeof navigator.canShare === "function" && navigator.canShare({ files: [new File([""], "x.txt")] }));
 
 export const deleteFiles = (ids: string[]) => api<{ deleted: number }>("/api/files/delete", { body: { ids } });
+
+/** Android: opens Documents/H_CHAT (where saved files go) in the phone's Files app. */
+export async function openSavedFolder() {
+  const { registerPlugin } = await import("@capacitor/core");
+  await registerPlugin<{ open(o: { path: string }): Promise<void> }>("Folders").open({ path: "Documents/H_CHAT" });
+}

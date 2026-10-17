@@ -415,10 +415,10 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
             className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-field border border-live-line font-mono text-[11px] font-bold text-live ${row ? "min-h-10 flex-1" : "min-h-11 px-2.5"} ${liveWith ? "bg-live/10" : "border-dashed bg-transparent"}`}
           >
             <span className={`size-1.5 rounded-full bg-live ${liveWith ? "shadow-[0_0_0_3px_rgba(127,220,232,0.2)]" : ""}`} aria-hidden="true" />
-            {row ? (liveWith ? "BACK TO LIVE" : "SWITCH TO LIVE") : "LIVE"}
+            {row && liveWith ? "BACK TO LIVE" : "LIVE"}
           </button>
         ) : null}
-        {rules?.export ? (
+        {rules ? (
           <button
             type="button"
             onClick={() => setExporting(true)}

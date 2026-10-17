@@ -4,7 +4,8 @@ import { Icon, removedText } from "../components/FileBubble";
 import { api, ApiError } from "../lib/api";
 import { longDuration, type Chat, type WireMessage } from "../lib/chats";
 import { decryptMessage } from "../lib/e2e";
-import { AUTO_PREVIEW, bytes, deleteFiles, downloadFile, fileUrl, knownUrl, saveBlob, type FileInfo, type FileRef, type MediaSummary } from "../lib/files";
+import { isNativeApp } from "../lib/platform";
+import { openSavedFolder, AUTO_PREVIEW, bytes, deleteFiles, downloadFile, fileUrl, knownUrl, saveBlob, type FileInfo, type FileRef, type MediaSummary } from "../lib/files";
 import { live } from "../lib/live";
 import { useViewOnlyProtection } from "../lib/protect";
 
@@ -101,6 +102,7 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
   const [confirm, setConfirm] = useState<string[] | null>(null);
+  const [savedSome, setSavedSome] = useState(false);
   const now = Date.now();
   useViewOnlyProtection(Boolean(items?.some((i) => i.file.view)));
 
@@ -147,6 +149,7 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
       }
     }
     setBusy("");
+    setSavedSome(allowed.length > 0);
     setNote(
       `${allowed.length} file${allowed.length === 1 ? "" : "s"} downloaded${skipped ? ` · ${skipped} view only or not allowed with that contact` : ""}.`,
     );
@@ -289,6 +292,11 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
             DELETE{picked.length ? ` ${picked.length}` : ""}
           </button>
         </div>
+        {savedSome && isNativeApp ? (
+          <button type="button" onClick={() => void openSavedFolder().catch(() => setError("Open the Files app, then Documents › H_CHAT."))} className="min-h-10 rounded-xl border border-line-strong bg-transparent text-[13px] font-semibold text-ink">
+            Open the folder (Documents/H_CHAT)
+          </button>
+        ) : null}
         {items?.length ? (
           <div className="flex justify-between text-[12.5px]">
             <button type="button" disabled={Boolean(busy)} onClick={() => void download(items)} className="bg-transparent p-0 font-semibold text-link">

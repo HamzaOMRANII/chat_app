@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import type { Chat } from "../lib/chats";
 import { buildExport, PERIOD_TEXT, type ExportReq } from "../lib/exports";
-import { bytes, saveBlob } from "../lib/files";
+import { bytes, openSavedFolder, saveBlob } from "../lib/files";
+import { isNativeApp } from "../lib/platform";
 
 const left = (iso: string, now: number) => {
   const ms = Math.max(0, Date.parse(iso) - now);
@@ -18,6 +19,7 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
   const [now, setNow] = useState(Date.now());
   const [progress, setProgress] = useState<{ id: string; text: string; ratio: number } | null>(null);
   const [saved, setSaved] = useState("");
+  const [viewSaved, setViewSaved] = useState<(() => void) | null>(null);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(t);
@@ -43,7 +45,8 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
       const out = await buildExport({ chat, userId, req: e, onProgress: (text, ratio) => setProgress({ id: e.id, text, ratio }) });
       const where = await saveBlob(out.blob, out.name);
       await api(`/api/exports/${e.id}/downloaded`, { method: "POST" });
-      setSaved(`${where}: ${out.name} · ${bytes(out.blob.size)}${out.left ? ` · ${out.left} view-only file${out.left > 1 ? "s" : ""} left out` : ""}`);
+      setViewSaved(() => out.view);
+      setSaved(`${where}${isNativeApp ? " (Documents/H_CHAT)" : " to your Downloads folder"}: ${out.name} · ${bytes(out.blob.size)}${out.left ? ` · ${out.left} view-only file${out.left > 1 ? "s" : ""} left out` : ""}`);
       onChanged();
     } catch (err) {
       onError(err);
@@ -121,7 +124,29 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
                 <p className="m-0 truncate font-mono text-[10.5px] text-faint">{progress.text}</p>
               </div>
             ) : null}
-            {saved && !building ? <p className="m-0 font-mono text-[11px] text-ok">{saved}</p> : null}
+            {saved && !building ? (
+              <div className="flex flex-col gap-2">
+                <p className="m-0 font-mono text-[11px] text-ok">{saved}</p>
+                {isNativeApp ? (
+                  <button
+                    type="button"
+                    onClick={() => void openSavedFolder().catch(() => onError(new Error("Open the Files app, then Documents › H_CHAT.")))}
+                    className="min-h-11 rounded-xl border border-line-strong bg-transparent text-sm font-semibold text-ink"
+                  >
+                    Open the folder
+                  </button>
+                ) : (
+                  <>
+                    <button type="button" onClick={() => viewSaved?.()} className="min-h-11 rounded-xl border border-line-strong bg-transparent text-sm font-semibold text-ink">
+                      Open the export
+                    </button>
+                    <p className="m-0 text-[11.5px] leading-normal text-faint">
+                      A website can't open your computer's folders: the zip is in your Downloads folder (Ctrl+J in Chrome, Edge and Firefox, ⌥⌘L in Safari, shows it).
+                    </p>
+                  </>
+                )}
+              </div>
+            ) : null}
             <button type="button" disabled={Boolean(progress)} onClick={() => void build(e)} className="min-h-12 rounded-xl bg-brand text-[14.5px] font-bold text-white disabled:opacity-60">
               {e.downloadedAt ? "Save it again" : "Build and save the zip"}
             </button>
