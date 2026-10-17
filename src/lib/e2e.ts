@@ -135,7 +135,7 @@ const associated = (chatId: string, senderId: string, senderVersion: number, rec
   sodium.from_string(`hchat-msg|${chatId}|${senderId}|${senderVersion}|${recipientVersion}`);
 
 /** A file sent with a message: what's needed to fetch, open and show it. Only inside the encrypted message. */
-export type FileRef = { id: string; name: string; mime: string; size: number; key: string; chunks: number };
+export type FileRef = { id: string; name: string; mime: string; size: number; key: string; chunks: number; /** Set by the sender: the other side may only look at it, not save it. */ view?: boolean };
 export type Plain = { t: string; f?: FileRef };
 
 export async function encryptMessage(opts: { userId: string; chatId: string; myKey: PublishedKey; theirKey: PublishedKey; plain: Plain }) {

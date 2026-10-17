@@ -5,6 +5,7 @@ import { api, ApiError } from "../lib/api";
 import { openLive, sealLive, type PublishedKey } from "../lib/e2e";
 import { live } from "../lib/live";
 import { saveBlob } from "../lib/files";
+import { ViewChoice } from "../components/AttachSheet";
 import { acceptLive, clock, countdown, forgetLive, liveKeys, liveSecret, type LiveSession } from "../lib/liveChat";
 
 const MAX_LENGTH = 1000;
@@ -13,11 +14,11 @@ const DROP_MS = 60_000;
 
 type Line = { id: number; mine: boolean; text: string; fileId?: string };
 /** A file in a live chat: offered, then sent straight to the other phone in pieces. Kept in memory only. */
-type LiveFile = { id: string; name: string; mime: string; size: number; mine: boolean; state: "offered" | "moving" | "done" | "refused" | "failed"; done: number; url?: string; blob?: Blob };
+type LiveFile = { id: string; name: string; mime: string; size: number; mine: boolean; state: "offered" | "moving" | "done" | "refused" | "failed"; done: number; url?: string; blob?: Blob; view?: boolean };
 /** What travels in a live chat: the whole current draft on every keystroke, or a finished line. `n` keeps them in order. */
 type LivePlain =
   | { t: "draft" | "line"; text: string; n: number }
-  | { t: "file-offer"; n: number; id: string; name: string; mime: string; size: number }
+  | { t: "file-offer"; n: number; id: string; name: string; mime: string; size: number; view?: boolean }
   | { t: "file-answer"; n: number; id: string; ok: boolean }
   | { t: "file-piece"; n: number; id: string; i: number; count: number; data: string }
   | { t: "file-ack"; n: number; id: string; i: number };
@@ -61,6 +62,9 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
   const [liveFiles, setLiveFiles] = useState<Map<string, LiveFile>>(new Map());
   const [rules, setRules] = useState<{ files: "all" | "p2p" | "none"; export: boolean } | null>(null);
   const filePicker = useRef<HTMLInputElement>(null);
+  // What the other side may do with the files I send (where the rules allow downloads at all)
+  const [viewOnly, setViewOnly] = useState<boolean | null>(null);
+  const sendViewOnly = viewOnly ?? !rules?.export;
   // Files I offered (waiting for an answer), pieces being received, and the sender's flow control
   const outgoing = useRef(new Map<string, File>());
   const incoming = useRef(new Map<string, Uint8Array[]>());
@@ -197,7 +201,7 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
         return;
       case "file-offer": {
         if (typeof plain.id !== "string" || !(plain.size > 0) || plain.size > MAX_LIVE_FILE) return;
-        const file: LiveFile = { id: plain.id, name: String(plain.name).slice(0, 200), mime: String(plain.mime || "application/octet-stream"), size: plain.size, mine: false, state: "offered", done: 0 };
+        const file: LiveFile = { id: plain.id, name: String(plain.name).slice(0, 200), mime: String(plain.mime || "application/octet-stream"), size: plain.size, mine: false, state: "offered", done: 0, view: plain.view === true };
         setLiveFiles((map) => new Map(map).set(file.id, file));
         setLines((list) => [...list, { id: ++lineId.current, mine: false, text: "", fileId: file.id }]);
         return;
@@ -290,9 +294,10 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
       const id = crypto.randomUUID();
       outgoing.current.set(id, file);
       const mime = file.type || "application/octet-stream";
-      setLiveFiles((map) => new Map(map).set(id, { id, name: file.name, mime, size: file.size, mine: true, state: "offered", done: 0 }));
+      const view = sendViewOnly || !rules?.export;
+      setLiveFiles((map) => new Map(map).set(id, { id, name: file.name, mime, size: file.size, mine: true, state: "offered", done: 0, view }));
       setLines((l) => [...l, { id: ++lineId.current, mine: true, text: "", fileId: id }]);
-      void push({ t: "file-offer", id, name: file.name.slice(0, 200), mime, size: file.size });
+      void push({ t: "file-offer", id, name: file.name.slice(0, 200), mime, size: file.size, view });
     }
   }
 
@@ -495,6 +500,14 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
           ) : null}
 
           <form onSubmit={send} className="flex flex-col gap-2 border-t border-line bg-sunken px-3.5 pb-[22px] pt-2.5">
+            {rules && rules.files !== "none" ? (
+              <div className="flex items-center gap-2">
+                <span className="shrink-0 font-mono text-[10.5px] text-dim">files you send:</span>
+                <span className="grow">
+                  <ViewChoice peerName={peerName} canExport={rules.export} viewOnly={sendViewOnly} onChange={setViewOnly} compact />
+                </span>
+              </div>
+            ) : null}
             <p className={`m-0 font-mono text-[10.5px] ${waiting ? "text-dim" : "text-live"}`}>
               {waiting ? `Writing is paused until ${peerName} is back` : `● ${peerName} sees every letter as you type · Enter sends the line`}
             </p>
@@ -569,7 +582,7 @@ function LiveFileCard({ file, peerName, canSave, onAnswer }: { file?: LiveFile; 
           <span className={file.mine ? "text-[#F3D3D9]" : "text-live"}>{file.name}</span>
         </span>
         <span className="font-mono text-[10.5px] text-dim">
-          {size} ·{" "}
+          {size} · {file.view ? "view only · " : ""}
           {file.state === "offered"
             ? file.mine
               ? `waiting for ${peerName} to accept`
@@ -601,7 +614,7 @@ function LiveFileCard({ file, peerName, canSave, onAnswer }: { file?: LiveFile; 
         </span>
       ) : null}
       {file.state === "done" && file.url && !file.mine ? (
-        canSave ? (
+        canSave && !file.view ? (
           <button
             type="button"
             onClick={() => file.blob && void saveBlob(file.blob, file.name)}
@@ -610,7 +623,7 @@ function LiveFileCard({ file, peerName, canSave, onAnswer }: { file?: LiveFile; 
             Save a copy
           </button>
         ) : (
-          <span className="text-[11.5px] text-faint">Saving isn't allowed with this contact.</span>
+          <span className="text-[11.5px] text-faint">{file.view ? `View only: ${peerName} doesn't allow saving it.` : "Saving isn't allowed with this contact."}</span>
         )
       ) : null}
     </div>

@@ -1,13 +1,22 @@
 import { useEffect, useState } from "react";
 import { bytes, canShareFiles, downloadFile, fileUrl, saveBlob, shareBlob, type FileRef } from "../lib/files";
 
-type Props = { file: FileRef; from: string; sentAt?: string; expiresIn?: string; canSave: boolean; onClose: () => void };
+type Props = { file: FileRef; from: string; sentAt?: string; expiresIn?: string; canSave: boolean; viewOnly?: boolean; onClose: () => void };
 
 /** A photo or video full screen, with Save and Share where the contact's rules allow it. */
-export function MediaViewer({ file, from, sentAt, expiresIn, canSave, onClose }: Props) {
+export function MediaViewer({ file, from, sentAt, expiresIn, canSave, viewOnly = false, onClose }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const [done, setDone] = useState(0);
   const [note, setNote] = useState("");
+  const [text, setText] = useState<string | null>(null);
+  const isText = file.mime.startsWith("text/") || file.mime === "application/json";
+  useEffect(() => {
+    if (!isText || !url) return;
+    void downloadFile(file)
+      .then((b) => b.slice(0, 2_000_000).text())
+      .then(setText)
+      .catch(() => {});
+  }, [isText, url, file]);
 
   useEffect(() => {
     let gone = false;
@@ -45,12 +54,15 @@ export function MediaViewer({ file, from, sentAt, expiresIn, canSave, onClose }:
           </span>
         </div>
       </header>
-      <div className="grid min-h-0 grow place-items-center">
+      {/* The whole photo or video, fitted to the space left between the top and bottom bars */}
+      <div className="relative grid min-h-0 flex-1 place-items-center overflow-hidden">
         {url ? (
           file.mime.startsWith("video/") ? (
-            <video src={url} controls autoPlay className="max-h-full max-w-full" />
+            <video src={url} controls autoPlay className="absolute inset-0 size-full object-contain" />
           ) : file.mime.startsWith("image/") ? (
-            <img src={url} alt={file.name} className="max-h-full max-w-full object-contain" />
+            <img src={url} alt={file.name} className="absolute inset-0 size-full object-contain" />
+          ) : isText ? (
+            <pre className="absolute inset-0 m-0 overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-[13px] leading-relaxed text-ink-soft">{text ?? ""}</pre>
           ) : (
             <p className="text-sm text-dim">{file.name} is ready.</p>
           )
@@ -83,7 +95,7 @@ export function MediaViewer({ file, from, sentAt, expiresIn, canSave, onClose }:
         {note && url ? <p className="m-0 font-mono text-[11px] text-ok">{note}</p> : null}
         <p className="m-0 text-xs leading-normal text-faint">
           Media is kept only as long as the chat allows, then deleted automatically.
-          {canSave ? " A saved copy is yours: it leaves H_CHAT." : " Saving isn't allowed with this contact."}
+          {canSave ? " A saved copy is yours: it leaves H_CHAT." : viewOnly ? ` ${from} shared it as view only: it can't be saved.` : " Saving isn't allowed with this contact."}
         </p>
       </footer>
     </div>

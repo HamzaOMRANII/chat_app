@@ -598,13 +598,16 @@ describe("live chats", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Attach a file" })).not.toBeDisabled());
     fireEvent.click(screen.getByRole("button", { name: "Attach a file" }));
     expect(await screen.findByText("Send a file to leila.b")).toBeInTheDocument();
+    // The sender decides: view only
+    fireEvent.click(screen.getByRole("radio", { name: "View only" }));
     const picked = new File(["%PDF-1.4 signed"], "signed.pdf", { type: "application/pdf" });
+
     fireEvent.change(screen.getByLabelText("Choose documents"), { target: { files: [picked] } });
     await waitFor(() => expect(calls.some((c) => c.path === `/api/chats/${chatId}/messages` && c.body.fileId === fileId)).toBe(true));
     expect(calls.find((c) => c.path === `/api/chats/${chatId}/files` && c.body.size)!.body).toEqual({ kind: "document", size: picked.size });
     expect(calls.find((c) => c.path === `/api/files/${fileId}/chunks/0`)!.body).toEqual({ bytes: picked.size + 40 });
     const sentPlain = JSON.parse(atob(calls.find((c) => c.body.fileId === fileId)!.body.ciphertext as string));
-    expect(sentPlain.f).toMatchObject({ id: fileId, name: "signed.pdf", mime: "application/pdf", chunks: 1 });
+    expect(sentPlain.f).toMatchObject({ id: fileId, name: "signed.pdf", mime: "application/pdf", chunks: 1, view: true });
     expect(await screen.findByText("signed.pdf")).toBeInTheDocument();
   });
 

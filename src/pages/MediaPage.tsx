@@ -43,7 +43,7 @@ async function chatMedia(chatId: string, userId: string): Promise<Item[]> {
     const theirKey = chat.keys.find((k) => k.userId === peerId && k.version === (mine ? m.recipientKeyVersion : m.senderKeyVersion));
     if (!myKey || !theirKey) continue;
     const plain = await decryptMessage({ userId, chatId, senderId: m.senderId, myKey, theirKey, ciphertext: m.ciphertext, nonce: m.nonce, senderKeyVersion: m.senderKeyVersion, recipientKeyVersion: m.recipientKeyVersion });
-    if (plain?.f) items.push({ file: plain.f, info: byId.get(m.fileId)!, chat, mine, canSave: options.options.export });
+    if (plain?.f) items.push({ file: plain.f, info: byId.get(m.fileId)!, chat, mine, canSave: options.options.export && (mine || !plain.f.view) });
   }
   return items.reverse();
 }
@@ -143,7 +143,7 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
     }
     setBusy("");
     setNote(
-      `${allowed.length} file${allowed.length === 1 ? "" : "s"} downloaded${skipped ? ` · ${skipped} not allowed with ${skipped === 1 ? "that contact" : "those contacts"}` : ""}.`,
+      `${allowed.length} file${allowed.length === 1 ? "" : "s"} downloaded${skipped ? ` · ${skipped} view only or not allowed with that contact` : ""}.`,
     );
   }
 
@@ -246,6 +246,7 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
                         <span className="truncate text-sm font-bold">{i.file.name}</span>
                         <span className="font-mono text-[10.5px] text-dim">
                           {bytes(i.file.size)}
+                          {i.canSave ? "" : " · view only"}
                           {chatId ? "" : ` · ${i.mine ? "to" : "from"} ${i.chat.with?.username ?? "?"}`}
                         </span>
                       </span>
@@ -294,7 +295,7 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
           </div>
         ) : null}
         <p className="m-0 text-[11.5px] leading-normal text-faint">
-          Deleting removes the file for both of you. Downloads are decrypted on this device; contacts whose rules don't allow export can't be downloaded.
+          Deleting removes the file for both of you. Downloads are decrypted on this device; files shared as view only, or with contacts whose rules don't allow export, can't be downloaded.
         </p>
       </footer>
 

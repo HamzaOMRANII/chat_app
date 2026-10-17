@@ -2,10 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { bytes, MAX_FILE, type MediaSummary } from "../lib/files";
 
-type Props = { peerName: string; keptFor: string; onPick: (files: File[]) => void; onClose: () => void };
+type Props = { peerName: string; keptFor: string; canExport: boolean; onPick: (files: File[], viewOnly: boolean) => void; onClose: () => void };
 
 /** "Send a file": photo or video, camera, or any document. Shows the space left. */
-export function AttachSheet({ peerName, keptFor, onPick, onClose }: Props) {
+export function AttachSheet({ peerName, keptFor, canExport, onPick, onClose }: Props) {
+  const [viewOnly, setViewOnly] = useState(!canExport);
   const [media, setMedia] = useState<MediaSummary | null>(null);
   const [error, setError] = useState("");
   const gallery = useRef<HTMLInputElement>(null);
@@ -24,7 +25,7 @@ export function AttachSheet({ peerName, keptFor, onPick, onClose }: Props) {
     const big = files.find((f) => f.size > MAX_FILE);
     if (big) return setError(`${big.name} is over 100 MB.`);
     if (media && files.reduce((a, f) => a + f.size, 0) + media.used > media.limit) return setError("Not enough space left in your 2 GB. Delete some media first.");
-    onPick(files);
+    onPick(files, viewOnly);
   }
 
   const tile = "flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-2xl border border-line-strong bg-raised text-[13px] font-bold text-ink hover:border-accent";
@@ -70,6 +71,7 @@ export function AttachSheet({ peerName, keptFor, onPick, onClose }: Props) {
             Document
           </button>
         </div>
+        <ViewChoice peerName={peerName} canExport={canExport} viewOnly={viewOnly} onChange={setViewOnly} />
         <input ref={gallery} type="file" accept="image/*,video/*" multiple hidden aria-label="Choose photos or videos" onChange={(e) => picked(e.target.files)} />
         <input ref={camera} type="file" accept="image/*" capture="environment" hidden aria-label="Take a photo" onChange={(e) => picked(e.target.files)} />
         <input ref={doc} type="file" multiple hidden aria-label="Choose documents" onChange={(e) => picked(e.target.files)} />
@@ -92,6 +94,32 @@ export function AttachSheet({ peerName, keptFor, onPick, onClose }: Props) {
           Cancel
         </button>
       </section>
+    </div>
+  );
+}
+
+/** The sender decides: the other side can download the file, or only look at it in H_CHAT. */
+export function ViewChoice({ peerName, canExport, viewOnly, onChange, compact = false }: { peerName: string; canExport: boolean; viewOnly: boolean; onChange: (viewOnly: boolean) => void; compact?: boolean }) {
+  const option = (value: boolean, label: string) => (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={viewOnly === value}
+      disabled={!value && !canExport}
+      onClick={() => onChange(value)}
+      className={`min-h-9 flex-1 rounded-[10px] border px-2.5 text-[12.5px] ${viewOnly === value ? "border-accent bg-accent/15 font-bold text-ink" : "border-line-strong bg-transparent font-semibold text-dim"} disabled:opacity-40`}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div className="flex flex-col gap-1.5">
+      {compact ? null : <span className="font-mono text-[11px] text-dim">what {peerName} can do with it</span>}
+      <div role="radiogroup" aria-label={`What ${peerName} can do with the file`} className="flex gap-1.5">
+        {option(false, "Can download")}
+        {option(true, "View only")}
+      </div>
+      {!canExport && !compact ? <span className="text-[11.5px] text-faint">This contact's rules don't allow downloads: files are view only.</span> : null}
     </div>
   );
 }

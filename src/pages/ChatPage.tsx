@@ -64,6 +64,21 @@ function dayLabel(iso: string) {
 
 const badgeTone = (mode: Chat["mode"]) => (mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep");
 
+/** True on a wide screen (tablet, computer): the chat header has room for every button. */
+function useWide() {
+  const query = "(min-width: 640px)";
+  const get = () => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(query).matches;
+  const [wide, setWide] = useState(get);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia(query);
+    const on = () => setWide(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return wide;
+}
+
 export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, onLive, onAuthError }: Props) {
   // Files: what the server says about them (deleted?), what this pair may do, uploads in progress, the viewer
   const [files, setFiles] = useState<Map<string, FileInfo>>(new Map());
@@ -73,6 +88,7 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
   const [viewing, setViewing] = useState<{ file: FileRef; mine: boolean; sentAt: string; expiresAt: string } | null>(null);
   const [fileNote, setFileNote] = useState("");
   const uploadKey = useRef(0);
+  const wide = useWide();
   // Live chat with the same person: allowed by their rules? already running?
   const [liveAllowed, setLiveAllowed] = useState(false);
   const [liveWith, setLiveWith] = useState<LiveSession | null>(null);
@@ -265,7 +281,7 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
   }
 
   /** Each picked file: encrypted and uploaded here with a progress bar, then sent as a message. */
-  async function sendFiles(picked: File[]) {
+  async function sendFiles(picked: File[], viewOnly: boolean) {
     setAttaching(false);
     for (const file of picked) {
       const key = ++uploadKey.current;
@@ -274,7 +290,7 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
       try {
         const current = chatRef.current;
         if (!current) throw new Error("The chat isn't ready.");
-        const ref = await uploadFile(chatId, file, (done) => setUploads((list) => list.map((u) => (u.key === key ? { ...u, done } : u))), abort.signal);
+        const ref = { ...(await uploadFile(chatId, file, (done) => setUploads((list) => list.map((u) => (u.key === key ? { ...u, done } : u))), abort.signal)), view: viewOnly };
         const myKey = latestKey(current, userId);
         const theirKey = await theirVerifiedKey(current, userId);
         if (!myKey || !theirKey) throw new Error("The chat keys aren't ready. Try again in a moment.");
@@ -290,11 +306,14 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
     }
   }
 
+  /** Saving a copy: only where the rules allow export, and never a file the other side shared as view only. */
+  const canSave = (file: FileRef, mine: boolean) => Boolean(rules?.export) && (mine || !file.view);
+
   /** Photos and videos open in the viewer; other files download (where the rules allow it). */
   async function openFile(m: Shown) {
     if (!m.file) return;
-    if (m.file.mime.startsWith("image/") || m.file.mime.startsWith("video/")) return setViewing({ file: m.file, mine: m.mine, sentAt: m.sentAt, expiresAt: m.expiresAt });
-    if (!rules?.export) return setFileNote("Downloading files isn't allowed with this contact.");
+    if (/^(image|video|text)\//.test(m.file.mime) || m.file.mime === "application/json") return setViewing({ file: m.file, mine: m.mine, sentAt: m.sentAt, expiresAt: m.expiresAt });
+    if (!canSave(m.file, m.mine)) return setFileNote(m.file.view ? `${peerName} shared ${m.file.name} as view only: it can't be downloaded.` : "Downloading files isn't allowed with this contact.");
     try {
       setFileNote(`Opening ${m.file.name}…`);
       setFileNote(`${await saveBlob(await downloadFile(m.file), m.file.name)}: ${m.file.name}`);
@@ -364,6 +383,41 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
   const locked = visibleMessages.filter((m) => m.text === null).length;
   const typing = typingUntil > now;
 
+  /** Media and Live: in the header on a wide screen, in their own row (with words) on a phone. */
+  function extras(row: boolean) {
+    const live = liveWith || liveAllowed;
+    return (
+      <>
+        {live ? (
+          <button
+            type="button"
+            onClick={() => (liveWith ? onLive(liveWith.id) : setStartingLive(true))}
+            aria-label={liveWith ? "Back to the live chat" : "Start a live chat"}
+            title={liveWith ? "Back to the live chat" : "Start a live chat"}
+            className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-field border border-live-line font-mono text-[11px] font-bold text-live ${row ? "min-h-10 flex-1" : "min-h-11 px-2.5"} ${liveWith ? "bg-live/10" : "border-dashed bg-transparent"}`}
+          >
+            <span className={`size-1.5 rounded-full bg-live ${liveWith ? "shadow-[0_0_0_3px_rgba(127,220,232,0.2)]" : ""}`} aria-hidden="true" />
+            {row ? (liveWith ? "BACK TO LIVE" : "SWITCH TO LIVE") : "LIVE"}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => onMedia(chatId)}
+          aria-label="Media in this chat"
+          title="Media in this chat"
+          className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-field border border-line bg-panel text-ink ${row ? "min-h-10 flex-1 text-[13px] font-semibold" : "size-11"}`}
+        >
+          <svg viewBox="0 0 24 24" width={row ? 17 : 19} height={row ? 17 : 19} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="16" rx="2" />
+            <circle cx="9" cy="10" r="2" />
+            <path d="M21 16l-5-5-9 9" />
+          </svg>
+          {row ? <span aria-hidden="true">Media</span> : null}
+        </button>
+      </>
+    );
+  }
+
   return (
     <main className="mx-auto flex h-dvh w-full max-w-[640px] flex-col">
       <header className="flex items-center gap-2 border-b border-line px-3 pb-2.5 pt-3.5">
@@ -383,31 +437,7 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
         </div>
         {chat?.status === "active" ? (
           <>
-            <button
-              type="button"
-              onClick={() => onMedia(chatId)}
-              aria-label="Media in this chat"
-              title="Media in this chat"
-              className="grid size-11 shrink-0 place-items-center rounded-field border border-line bg-panel text-ink"
-            >
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <rect x="3" y="4" width="18" height="16" rx="2" />
-                <circle cx="9" cy="10" r="2" />
-                <path d="M21 16l-5-5-9 9" />
-              </svg>
-            </button>
-            {liveWith || liveAllowed ? (
-              <button
-                type="button"
-                onClick={() => (liveWith ? onLive(liveWith.id) : setStartingLive(true))}
-                aria-label={liveWith ? "Back to the live chat" : "Start a live chat"}
-                title={liveWith ? "Back to the live chat" : "Start a live chat"}
-                className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-field border border-live-line px-2.5 font-mono text-[11px] font-bold text-live ${liveWith ? "bg-live/10" : "border-dashed bg-transparent"}`}
-              >
-                <span className={`size-1.5 rounded-full bg-live ${liveWith ? "shadow-[0_0_0_3px_rgba(127,220,232,0.2)]" : ""}`} aria-hidden="true" />
-                LIVE
-              </button>
-            ) : null}
+            {wide ? extras(false) : null}
             <button type="button" onClick={() => onSafety(chat)} aria-label="Safety code" className="grid size-11 shrink-0 place-items-center rounded-field border border-line bg-panel text-ink">
               <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <rect x="4" y="11" width="16" height="10" rx="2" />
@@ -425,6 +455,7 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
           </>
         ) : null}
       </header>
+      {chat?.status === "active" && !wide ? <div className="flex gap-2 border-b border-line px-3 py-2">{extras(true)}</div> : null}
 
       {chat?.status === "active" ? (
         <p className="m-0 flex items-center gap-2.5 border-b border-line bg-panel px-[18px] py-2 font-mono text-[11px] text-dim">
@@ -606,14 +637,21 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
         </>
       )}
 
-      {attaching && chat ? <AttachSheet peerName={peerName} keptFor={longDuration(chat.retentionMinutes)} onPick={(picked) => void sendFiles(picked)} onClose={() => setAttaching(false)} /> : null}
+      {attaching && chat ? <AttachSheet
+          peerName={peerName}
+          keptFor={longDuration(chat.retentionMinutes)}
+          canExport={Boolean(rules?.export)}
+          onPick={(picked, viewOnly) => void sendFiles(picked, viewOnly)}
+          onClose={() => setAttaching(false)}
+        /> : null}
       {viewing ? (
         <MediaViewer
           file={viewing.file}
           from={viewing.mine ? "you" : peerName}
           sentAt={time(viewing.sentAt)}
           expiresIn={deletedIn(viewing.expiresAt, now).replace(/^deleted /, "")}
-          canSave={Boolean(rules?.export)}
+          canSave={canSave(viewing.file, viewing.mine)}
+          viewOnly={!viewing.mine && Boolean(viewing.file.view)}
           onClose={() => setViewing(null)}
         />
       ) : null}
