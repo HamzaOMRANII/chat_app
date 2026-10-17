@@ -5,9 +5,10 @@ import { registerPlugin } from "@capacitor/core";
 import { live } from "./live";
 import { isNativeApp } from "./platform";
 
+type AudioRoute = { route: "headset" | "earpiece" | "speaker"; speaker: boolean };
 /** Android: loudspeaker or earpiece for the call's sound (a web view's call audio goes to the earpiece otherwise). */
 const CallAudio = isNativeApp
-  ? registerPlugin<{ start(o: { speaker: boolean }): Promise<{ speaker: boolean }>; setSpeaker(o: { on: boolean }): Promise<{ speaker: boolean }>; stop(): Promise<void> }>("CallAudio")
+  ? registerPlugin<{ start(o: { speaker: boolean }): Promise<AudioRoute>; setSpeaker(o: { on: boolean }): Promise<AudioRoute>; stop(): Promise<void> }>("CallAudio")
   : null;
 
 export type CallKind = "voice" | "video";
@@ -34,8 +35,9 @@ export type CallState = {
   micId: string | null;
   camId: string | null;
   speakerId: string | null;
-  /** Android: the sound plays on the loudspeaker (true) or the earpiece. */
+  /** Android: where the sound plays. Headset or earbuds first, then the earpiece; the loudspeaker only when asked. */
   speaker: boolean;
+  route: "headset" | "earpiece" | "speaker";
   devices: Devices;
 };
 
@@ -58,7 +60,8 @@ const IDLE: CallState = {
   micId: null,
   camId: null,
   speakerId: null,
-  speaker: true,
+  speaker: false,
+  route: "earpiece",
   devices: { mics: [], cams: [], speakers: [] },
 };
 
@@ -148,12 +151,12 @@ export async function listDevices() {
 }
 
 let audioOn = false;
-/** Android: call audio mode, on the loudspeaker to start with. */
+/** Android: call audio mode, on a headset or earbuds if connected, else the earpiece. */
 function startAudio() {
   if (!CallAudio || audioOn) return;
   audioOn = true;
-  void CallAudio.start({ speaker: state.speaker })
-    .then((r) => set({ speaker: r.speaker }))
+  void CallAudio.start({ speaker: false })
+    .then((r) => set({ speaker: r.speaker, route: r.route }))
     .catch(() => {});
 }
 
@@ -367,11 +370,14 @@ export const calls = {
   useSpeaker(id: string) {
     set({ speakerId: id });
   },
-  /** Android: loudspeaker or earpiece (headset or earbuds when connected). */
+  /** Android: the loudspeaker, or back to the headset/earbuds (else the earpiece). */
   async toggleSpeaker() {
     const on = !state.speaker;
     set({ speaker: on });
-    if (CallAudio) set({ speaker: (await CallAudio.setSpeaker({ on }).catch(() => ({ speaker: on }))).speaker });
+    if (CallAudio) {
+      const r = await CallAudio.setSpeaker({ on }).catch((): AudioRoute => ({ speaker: on, route: on ? "speaker" : "earpiece" }));
+      set({ speaker: r.speaker, route: r.route });
+    }
   },
 };
 

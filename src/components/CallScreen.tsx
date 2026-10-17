@@ -14,6 +14,7 @@ const icons = {
   hang: <path d="M3 15c5-5 13-5 18 0l-2.5 2.5-3-1.5v-2.5a10 10 0 0 0-7 0V16l-3 1.5z" />,
   lock: <path d="M4 11h16v10H4zM8 11V7a4 4 0 0 1 8 0v4" />,
   speaker: <path d="M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11" />,
+  headset: <path d="M4 15v-3a8 8 0 0 1 16 0v3M4 15h3v5H5a1 1 0 0 1-1-1zM20 15h-3v5h2a1 1 0 0 0 1-1z" />,
   earpiece: <path d="M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM10 6h4" />,
 };
 const Icon = ({ d, size = 22 }: { d: keyof typeof icons; size?: number }) => (
@@ -248,7 +249,13 @@ export function CallScreen() {
       {video ? <Control icon={s.cameraOn ? "video" : "camOff"} label={s.cameraOn ? "Camera" : "Camera off"} tone={s.cameraOn ? "plain" : "on"} onClick={() => calls.toggleCamera()} disabled={s.phase === "ended"} /> : null}
       {video && !wide ? <Control icon="flip" label="Flip" onClick={() => void calls.flip()} disabled={s.phase === "ended"} /> : null}
       {isNativeApp ? (
-        <Control icon={s.speaker ? "speaker" : "earpiece"} label={s.speaker ? "Speaker" : "Earpiece"} tone={s.speaker ? "on" : "plain"} onClick={() => void calls.toggleSpeaker()} disabled={s.phase === "ended"} />
+        <Control
+          icon={s.speaker ? "speaker" : s.route === "headset" ? "headset" : "earpiece"}
+          label={s.speaker ? "Speaker on" : s.route === "headset" ? "Headset" : "Earpiece"}
+          tone={s.speaker ? "on" : "plain"}
+          onClick={() => void calls.toggleSpeaker()}
+          disabled={s.phase === "ended"}
+        />
       ) : null}
       <Control icon="gear" label="Devices" onClick={() => setDevices((d) => !d)} disabled={s.phase === "ended"} />
       <Control icon="hang" label="Hang up" tone="danger" onClick={() => (s.phase === "ended" ? calls.dismiss() : calls.hangUp())} />
