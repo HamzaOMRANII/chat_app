@@ -10,6 +10,7 @@ import { ChatPage } from "../pages/ChatPage";
 import { LivePage } from "../pages/LivePage";
 import { MediaPage } from "../pages/MediaPage";
 import { CallScreen } from "../components/CallScreen";
+import { UpdatePrompt } from "../components/UpdatePrompt";
 import { attachCalls } from "../lib/calls";
 import { SafetyPage } from "../pages/SafetyPage";
 import { prepareDevice } from "../lib/chats";
@@ -301,6 +302,7 @@ export function App() {
       {page()}
       <Banners banners={banners} onDismiss={dismissBanner} />
       {signedIn ? <CallScreen /> : null}
+      <UpdatePrompt />
     </>
   );
 
