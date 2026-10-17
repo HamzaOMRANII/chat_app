@@ -334,6 +334,25 @@ describe("stored chats", () => {
     expect(screen.queryByRole("button", { name: "End chat" })).toBeNull();
   });
 
+  it("shows ✓✓ read even when the read receipt arrives before the server's answer to the send", async () => {
+    routes["/api/chats"] = () => [200, { chats: [chat()] }];
+    routes[`/api/chats/${"c".repeat(24)}`] = () => [200, { chat: chat() }];
+    routes[`/api/chats/${"c".repeat(24)}/receipts`] = () => [200, { delivered: 0, read: 0 }];
+    routes[`/api/chats/${"c".repeat(24)}/messages`] = (body) => {
+      if (!body.ciphertext) return [200, { messages: [] }];
+      // leila has the chat open too: her read receipt beats the answer to my send
+      socketHandlers["msg:status"]!({ chatId: "c".repeat(24), delivered: [], read: ["m9"], at: new Date().toISOString() });
+      return [201, { message: wire("m9", me.id, "ignored", { ...body }) }];
+    };
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
+    expect(await screen.findByText("No messages yet. Say hello.")).toBeInTheDocument();
+    type("Message", "Are you there?");
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(await screen.findByText("Are you there?")).toBeInTheDocument();
+    expect(await screen.findByText(/✓✓ read/)).toBeInTheDocument();
+  });
+
   it("after a reconnect, the open chat shows the messages it missed", async () => {
     let wireList = [wire("m1", leila.id, "First")];
     routes["/api/chats"] = () => [200, { chats: [chat()] }];

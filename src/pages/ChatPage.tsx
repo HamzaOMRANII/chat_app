@@ -66,7 +66,11 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onAuthErr
   const chatRef = useRef<Chat | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const lastTypingSent = useRef(0);
+  // ✓ / ✓✓ that arrived before the server's answer to my own send: applied as soon as the message is shown
+  const earlyStatus = useRef(new Map<string, { deliveredAt: string; readAt: string | null }>());
   chatRef.current = chat;
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
   // Ended chats leave the screen (and the list) at once
   const closedRef = useRef(false);
   // In a ref: a new onClosed from the parent mustn't reload the chat
@@ -147,6 +151,11 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onAuthErr
       }),
       live.on<{ chatId: string; delivered: string[]; read: string[]; at: string }>("msg:status", ({ chatId: id, delivered, read, at }) => {
         if (id !== chatId) return;
+        // Recorded at once (not inside a state update, which React runs later)
+        const shown = new Set(messagesRef.current.map((m) => m.id));
+        for (const mid of [...delivered, ...read]) {
+          if (!shown.has(mid)) earlyStatus.current.set(mid, { deliveredAt: earlyStatus.current.get(mid)?.deliveredAt ?? at, readAt: read.includes(mid) ? at : null });
+        }
         setMessages((list) =>
           list.map((m) => (read.includes(m.id) ? { ...m, deliveredAt: m.deliveredAt ?? at, readAt: at } : delivered.includes(m.id) ? { ...m, deliveredAt: at } : m)),
         );
@@ -206,7 +215,12 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onAuthErr
       if (!myKey || !theirKey) throw new Error("The chat keys aren't ready. Try again in a moment.");
       const body = await encryptMessage({ userId, chatId, myKey, theirKey, plain: { t: text } });
       const { message } = await api<{ message: WireMessage }>(`/api/chats/${chatId}/messages`, { body });
-      setMessages((list) => [...list, { id: message.id, mine: true, text, sentAt: message.sentAt, deliveredAt: null, readAt: null, expiresAt: message.expiresAt }]);
+      const early = earlyStatus.current.get(message.id);
+      earlyStatus.current.delete(message.id);
+      setMessages((list) => [
+        ...list.filter((m) => m.id !== message.id),
+        { id: message.id, mine: true, text, sentAt: message.sentAt, deliveredAt: early?.deliveredAt ?? null, readAt: early?.readAt ?? null, expiresAt: message.expiresAt },
+      ]);
       setDraft("");
     } catch (err) {
       if (err instanceof ApiError && err.code === "stale_keys") await load();
