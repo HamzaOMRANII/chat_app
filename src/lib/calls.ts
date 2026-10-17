@@ -11,7 +11,7 @@ export type Output = { id: string; kind: "earpiece" | "speaker" | "bluetooth" | 
 /** Android: loudspeaker or earpiece for the call's sound (a web view's call audio goes to the earpiece otherwise). */
 const CallAudio = isNativeApp
   ? registerPlugin<{
-      start(o: { speaker: boolean }): Promise<AudioRoute>;
+      start(o: { speaker: boolean; video?: boolean; who?: string }): Promise<AudioRoute>;
       setSpeaker(o: { on: boolean }): Promise<AudioRoute>;
       devices(): Promise<{ devices: Output[]; current: string | null }>;
       setDevice(o: { id: string }): Promise<AudioRoute>;
@@ -184,11 +184,12 @@ async function report(when: string) {
 }
 
 let audioOn = false;
+let lostTimer: ReturnType<typeof setTimeout> | undefined;
 /** Android: call audio mode, on a headset or earbuds if connected, else the earpiece. */
 function startAudio() {
   if (!CallAudio || audioOn) return;
   audioOn = true;
-  void CallAudio.start({ speaker: false })
+  void CallAudio.start({ speaker: false, video: state.kind === "video", who: state.peer?.username ?? "" })
     .then((r) => set({ speaker: r.speaker, route: r.route, outputId: r.id ?? null }))
     .then(() => calls.loadOutputs())
     .catch(() => {});
@@ -196,6 +197,7 @@ function startAudio() {
 
 function cleanup() {
   stopRing();
+  clearTimeout(lostTimer);
   if (CallAudio && audioOn) void CallAudio.stop().catch(() => {});
   audioOn = false;
   clearInterval(tick);
@@ -259,6 +261,9 @@ async function connect(asCaller: boolean) {
       setTimeout(() => void report("30s"), 30000);
     }
     if (pc.connectionState === "failed") void fail(new Error("The connection was lost."));
+    // Lost for 15 s (the other phone went silent, its network dropped): end it properly on both sides
+    clearTimeout(lostTimer);
+    if (pc.connectionState === "disconnected") lostTimer = setTimeout(() => pc?.connectionState === "disconnected" && void fail(new Error("The connection was lost.")), 15_000);
   };
   if (asCaller) {
     const offer = await pc.createOffer();

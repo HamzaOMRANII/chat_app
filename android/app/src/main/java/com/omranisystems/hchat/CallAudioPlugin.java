@@ -1,6 +1,8 @@
 package com.omranisystems.hchat;
 
 import android.content.Context;
+import android.content.Intent;
+import android.os.PowerManager;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.os.Build;
@@ -31,12 +33,41 @@ public class CallAudioPlugin extends Plugin {
             || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && type == AudioDeviceInfo.TYPE_BLE_HEADSET);
     }
 
+    private PowerManager.WakeLock proximity;
+
+    /** Earpiece: the screen turns off when the phone is at the ear (without pausing the call). */
+    private void earMode(boolean on) {
+        PowerManager pm = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
+        if (on) {
+            if (proximity == null && pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+                proximity = pm.newWakeLock(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK, "hchat:call-ear");
+            }
+            if (proximity != null && !proximity.isHeld()) proximity.acquire(4 * 60 * 60 * 1000L);
+        } else if (proximity != null && proximity.isHeld()) {
+            proximity.release();
+        }
+    }
+
+    private void afterRoute(AudioManager am) {
+        earMode("earpiece".equals(state(am).getString("route")));
+    }
+
     @PluginMethod
     public void start(PluginCall call) {
+        // The call keeps the microphone (and camera) with the screen off or the app in the background
+        Intent service = new Intent(getContext(), CallService.class);
+        service.putExtra("video", Boolean.TRUE.equals(call.getBoolean("video", false)));
+        service.putExtra("who", call.getString("who", ""));
+        try {
+            androidx.core.content.ContextCompat.startForegroundService(getContext(), service);
+        } catch (Exception ignored) {
+            // Without it the call still works while the screen is on
+        }
         AudioManager am = audio();
         am.setMode(AudioManager.MODE_IN_COMMUNICATION);
         getActivity().runOnUiThread(() -> getActivity().setVolumeControlStream(AudioManager.STREAM_VOICE_CALL));
         route(am, Boolean.TRUE.equals(call.getBoolean("speaker", false)));
+        afterRoute(am);
         call.resolve(state(am));
     }
 
@@ -44,11 +75,14 @@ public class CallAudioPlugin extends Plugin {
     public void setSpeaker(PluginCall call) {
         AudioManager am = audio();
         route(am, Boolean.TRUE.equals(call.getBoolean("on", false)));
+        afterRoute(am);
         call.resolve(state(am));
     }
 
     @PluginMethod
     public void stop(PluginCall call) {
+        earMode(false);
+        getContext().stopService(new Intent(getContext(), CallService.class));
         AudioManager am = audio();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) am.clearCommunicationDevice();
         else {
@@ -136,6 +170,7 @@ public class CallAudioPlugin extends Plugin {
                 am.stopBluetoothSco();
             }
         }
+        afterRoute(am);
         call.resolve(state(am));
     }
 
