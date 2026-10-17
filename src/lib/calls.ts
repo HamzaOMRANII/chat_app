@@ -150,6 +150,22 @@ export async function listDevices() {
   }
 }
 
+/** Sound received and sent, and whether this device plays it: to the server's log, never any content. */
+async function report(when: string) {
+  if (!pc || !state.callId) return;
+  const stats = await pc.getStats().catch(() => null);
+  const out: Record<string, unknown> = { when, kind: state.kind, relayed: state.relayed, route: state.route, muted: state.muted, native: isNativeApp };
+  stats?.forEach((r) => {
+    if (r.type === "inbound-rtp" && r.kind === "audio") out.audioIn = { bytes: r.bytesReceived, packets: r.packetsReceived, lost: r.packetsLost, energy: r.totalAudioEnergy, level: r.audioLevel };
+    if (r.type === "outbound-rtp" && r.kind === "audio") out.audioOut = { bytes: r.bytesSent, packets: r.packetsSent };
+  });
+  const track = state.remote?.getAudioTracks()[0];
+  out.remoteTrack = track ? { enabled: track.enabled, muted: track.muted, state: track.readyState } : null;
+  const el = document.querySelector<HTMLAudioElement>("audio[data-remote]");
+  out.player = el ? { paused: el.paused, volume: el.volume, muted: el.muted, hasStream: Boolean(el.srcObject), readyState: el.readyState } : null;
+  await api("/api/calls/diag", { body: { callId: state.callId, data: out } }).catch(() => {});
+}
+
 let audioOn = false;
 /** Android: call audio mode, on a headset or earbuds if connected, else the earpiece. */
 function startAudio() {
@@ -217,6 +233,9 @@ async function connect(asCaller: boolean) {
         });
       check();
       setTimeout(check, 2000);
+      // What the call really carries (sent to the server to find audio problems): at 5 s and 15 s
+      setTimeout(() => void report("5s"), 5000);
+      setTimeout(() => void report("15s"), 15000);
     }
     if (pc.connectionState === "failed") void fail(new Error("The connection was lost."));
   };

@@ -82,7 +82,7 @@ function RemoteAudio({ stream, sinkId }: { stream: MediaStream | null; sinkId?: 
     const el = ref.current as (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }) | null;
     if (sinkId && el?.setSinkId) void el.setSinkId(sinkId).catch(() => {});
   }, [sinkId]);
-  return <audio ref={ref} autoPlay playsInline className="pointer-events-none absolute size-px opacity-0" />;
+  return <audio ref={ref} autoPlay playsInline data-remote="" className="pointer-events-none absolute size-px opacity-0" />;
 }
 
 /** The microphone's level, so you can see it works (and that mute does). */
