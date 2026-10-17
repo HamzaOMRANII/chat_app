@@ -19,6 +19,8 @@ export const live = {
     handlers.set(event, set);
     return () => void set.delete(fn as Handler);
   },
+  /** False while the connection is down: screens then refresh on their own. */
+  connected: () => Boolean(socket?.connected),
   send(event: string, payload: unknown) {
     if (socket?.connected) socket.emit(event, payload);
   },

@@ -159,6 +159,8 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onAuthErr
       }),
       live.on<{ chatId: string }>("chat:keys", ({ chatId: id }) => id === chatId && void load()),
       live.on("chats:changed", () => void load()),
+      // Reconnected or back on screen: fetch what arrived meanwhile
+      live.on("resync", () => void load()),
     ];
     const visible = () => document.visibilityState === "visible" && receipts();
     document.addEventListener("visibilitychange", visible);
@@ -167,6 +169,14 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onAuthErr
       document.removeEventListener("visibilitychange", visible);
     };
   }, [chatId, userId, open, receipts, load, close]);
+
+  // Safety net: while the live connection is down and the chat is on screen, check for new messages every 5 s
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (!live.connected() && document.visibilityState === "visible") void load();
+    }, 5000);
+    return () => clearInterval(t);
+  }, [load]);
 
   // Countdowns, typing indicator expiry, and messages disappearing on time
   useEffect(() => {

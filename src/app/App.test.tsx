@@ -334,6 +334,22 @@ describe("stored chats", () => {
     expect(screen.queryByRole("button", { name: "End chat" })).toBeNull();
   });
 
+  it("after a reconnect, the open chat shows the messages it missed", async () => {
+    let wireList = [wire("m1", leila.id, "First")];
+    routes["/api/chats"] = () => [200, { chats: [chat()] }];
+    routes[`/api/chats/${"c".repeat(24)}`] = () => [200, { chat: chat() }];
+    routes[`/api/chats/${"c".repeat(24)}/receipts`] = () => [200, { delivered: 0, read: 0 }];
+    routes[`/api/chats/${"c".repeat(24)}/messages`] = () => [200, { messages: wireList }];
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
+    expect(await screen.findByText("First")).toBeInTheDocument();
+
+    // Sent while this phone's connection was down: no live event ever came
+    wireList = [...wireList, wire("m2", leila.id, "Sent while you were offline")];
+    socketHandlers["connect"]!(undefined);
+    expect(await screen.findByText("Sent while you were offline")).toBeInTheDocument();
+  });
+
   it("shows a banner for each event and opens what it's about; an accepted chat opens by itself", async () => {
     routes["/api/chats"] = () => [200, { chats: [chat({ status: "invited", createdByMe: true, keys: [key(me.id)] })] }];
     routes[`/api/chats/${"c".repeat(24)}`] = () => [200, { chat: chat() }];

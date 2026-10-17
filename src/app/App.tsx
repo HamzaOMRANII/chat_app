@@ -146,10 +146,25 @@ export function App() {
       // Re-read on every reconnect: the server sends a Web Push only when the app isn't on screen
       auth: (cb: (data: Record<string, unknown>) => void) => cb({ ...(isNativeApp ? { token: tokenStore.get() } : {}), visible: visible.current }),
       transports: ["websocket"],
+      reconnectionDelayMax: 2000,
     });
+    // Back on screen: the connection may have died silently while the phone slept. Check it now
+    // (reconnect if it doesn't answer within 3 s) and fetch whatever was missed.
+    const catchUp = () => {
+      setContactsVersion((v) => v + 1);
+      live.dispatch("resync", null);
+    };
     const setVisible = (on: boolean) => {
+      const wasVisible = visible.current;
       visible.current = on;
       socket.emit("visibility", { visible: on });
+      if (!on || wasVisible) return;
+      if (!socket.connected) socket.connect();
+      else
+        socket.timeout(3000).emit("alive", null, (err: Error | null) => {
+          if (err) socket.disconnect().connect();
+        });
+      catchUp();
     };
     const onVisibility = () => setVisible(onScreenNow());
     document.addEventListener("visibilitychange", onVisibility);
@@ -200,8 +215,8 @@ export function App() {
       });
     }
     live.attach(socket);
-    // Missed events while offline: reload on every reconnect
-    socket.on("connect", () => setContactsVersion((v) => v + 1));
+    // Missed events while offline: the list and the open chat reload on every reconnect
+    socket.on("connect", catchUp);
     socket.on("connect_error", (err: Error & { data?: Partial<Closed> }) => {
       if (err.message === "unauthorized" && err.data?.reason) showClosed({ code: "session_revoked", ...err.data });
     });
