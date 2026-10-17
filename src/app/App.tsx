@@ -143,8 +143,15 @@ export function App() {
     const socket = io(SERVER_ORIGIN || undefined, {
       path: "/socket.io",
       withCredentials: !isNativeApp,
-      // Re-read on every reconnect: the server sends a Web Push only when the app isn't on screen
-      auth: (cb: (data: Record<string, unknown>) => void) => cb({ ...(isNativeApp ? { token: tokenStore.get() } : {}), visible: visible.current }),
+      // Asked again on every reconnect. The APK sends its token; the web app a fresh 60-second ticket (asked with
+      // its cookie), so the live connection never depends on which cookies the browser sends to /socket.io.
+      // "visible": the server sends a Web Push only when the app isn't on screen.
+      auth: (cb: (data: Record<string, unknown>) => void) => {
+        if (isNativeApp) return cb({ token: tokenStore.get(), visible: visible.current });
+        api<{ ticket: string }>("/api/auth/socket-ticket")
+          .then(({ ticket }) => cb({ ticket, visible: visible.current }))
+          .catch(() => cb({ visible: visible.current }));
+      },
       transports: ["websocket"],
       reconnectionDelayMax: 2000,
     });
@@ -217,10 +224,17 @@ export function App() {
     live.attach(socket);
     // Missed events while offline: the list and the open chat reload on every reconnect
     socket.on("connect", catchUp);
+    // Refused by the server: a closed session shows why; anything else tries again (Socket.IO doesn't on its own)
+    let retry: ReturnType<typeof setTimeout> | undefined;
     socket.on("connect_error", (err: Error & { data?: Partial<Closed> }) => {
-      if (err.message === "unauthorized" && err.data?.reason) showClosed({ code: "session_revoked", ...err.data });
+      if (err.message === "unauthorized" && err.data?.reason) return showClosed({ code: "session_revoked", ...err.data });
+      if (err.message === "unauthorized" && !socket.active) {
+        clearTimeout(retry);
+        retry = setTimeout(() => socket.connect(), 3000);
+      }
     });
     return () => {
+      clearTimeout(retry);
       live.attach(null);
       document.removeEventListener("visibilitychange", onVisibility);
       removeAppState();
