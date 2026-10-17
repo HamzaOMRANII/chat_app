@@ -69,10 +69,44 @@ async function subscribeWeb() {
   return true;
 }
 
+// ---------- Android app closed: Firebase Cloud Messaging ----------
+let fcmActive = false;
+const fcmHandles: { remove: () => Promise<void> }[] = [];
+const push = () => import("@capacitor/push-notifications").then((m) => m.PushNotifications);
+
+/**
+ * Registers this phone with Firebase so events still arrive when the app is closed. Google only gets generic texts
+ * ("New message", "Incoming call"); tapping one opens the app. Calls ring on their own channel.
+ */
+export async function registerFcm() {
+  if (!isNativeApp) return false;
+  try {
+    const p = await push();
+    const perm = await p.checkPermissions();
+    if (perm.receive !== "granted") return false;
+    await p.createChannel({ id: "hc_calls", name: "Calls", description: "Incoming voice and video calls", importance: 5, visibility: 1, sound: "default", vibration: true });
+    await p.createChannel({ id: "hc_events", name: "Messages and invitations", description: "Messages, chat and contact invitations", importance: 4, visibility: 0, vibration: true });
+    // Only this function's own listeners are replaced (the tap listener stays)
+    for (const h of fcmHandles.splice(0)) await h.remove();
+    fcmHandles.push(
+      await p.addListener("registration", ({ value }) => {
+        fcmActive = true;
+        void api("/api/notifications/fcm", { body: { token: value } }).catch(() => (fcmActive = false));
+      }),
+      await p.addListener("registrationError", () => (fcmActive = false)),
+    );
+    await p.register();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Asks for permission (from a tap) and turns notifications on for this device. */
 export async function enableNotifications(): Promise<Permission> {
   if (isNativeApp) {
     const { display } = await (await local()).requestPermissions();
+    if (display === "granted") void registerFcm();
     return display === "granted" ? "granted" : display === "denied" ? "denied" : "default";
   }
   if (!webSupported()) return "unsupported";
@@ -83,14 +117,16 @@ export async function enableNotifications(): Promise<Permission> {
 
 /** After each sign-in: the subscription belongs to the session, so the new session registers it again. */
 export async function syncNotifications() {
-  if (isNativeApp || !webSupported() || Notification.permission !== "granted") return;
+  if (isNativeApp) return void registerFcm();
+  if (!webSupported() || Notification.permission !== "granted") return;
   await subscribeWeb().catch(() => {});
 }
 
 let nextId = 1;
 /** Android app in the background: a phone notification for this event. */
 export async function showOnPhone(note: Note) {
-  if (!isNativeApp) return;
+  // With Firebase, the same event already arrives as a phone notification: don't show it twice
+  if (!isNativeApp || fcmActive) return;
   const notifications = await local();
   await notifications.schedule({
     notifications: [{ id: nextId++, title: note.title, body: note.body, group: note.tag, extra: { open: note.open } }],
@@ -104,6 +140,11 @@ export function onNotificationTap(go: (open: Note["open"]) => void) {
     void local().then((n) =>
       n
         .addListener("localNotificationActionPerformed", ({ notification }) => go((notification.extra as { open?: Note["open"] } | undefined)?.open ?? {}))
+        .then((handle) => cleanups.push(() => void handle.remove())),
+    );
+    void push().then((p) =>
+      p
+        .addListener("pushNotificationActionPerformed", ({ notification }) => go(openFromUrl(String((notification.data as { url?: string } | undefined)?.url ?? "/"))))
         .then((handle) => cleanups.push(() => void handle.remove())),
     );
   } else if (webSupported()) {
