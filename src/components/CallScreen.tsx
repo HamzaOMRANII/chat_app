@@ -76,7 +76,28 @@ function RemoteAudio({ stream, sinkId }: { stream: MediaStream | null; sinkId?: 
     const el = ref.current;
     if (!el) return;
     if (el.srcObject !== stream) el.srcObject = stream;
-    if (stream) void el.play().catch(() => {});
+    if (!stream) return;
+    // Android pauses the app's players when the phone switches to call mode (earpiece): play again at once,
+    // and check every second; the last refusal is kept for the call report
+    const resume = () => {
+      if (!el.paused) return;
+      void el.play().then(
+        () => el.removeAttribute("data-play-error"),
+        (err: unknown) => el.setAttribute("data-play-error", err instanceof Error ? `${err.name}: ${err.message}` : String(err)),
+      );
+    };
+    resume();
+    el.addEventListener("pause", resume);
+    el.addEventListener("loadedmetadata", resume);
+    const t = setInterval(resume, 1000);
+    // A tap is a gesture: always allowed to start sound
+    document.addEventListener("pointerdown", resume, true);
+    return () => {
+      clearInterval(t);
+      el.removeEventListener("pause", resume);
+      el.removeEventListener("loadedmetadata", resume);
+      document.removeEventListener("pointerdown", resume, true);
+    };
   }, [stream]);
   useEffect(() => {
     const el = ref.current as (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }) | null;

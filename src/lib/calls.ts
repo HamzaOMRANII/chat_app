@@ -162,7 +162,7 @@ async function report(when: string) {
   const track = state.remote?.getAudioTracks()[0];
   out.remoteTrack = track ? { enabled: track.enabled, muted: track.muted, state: track.readyState } : null;
   const el = document.querySelector<HTMLAudioElement>("audio[data-remote]");
-  out.player = el ? { paused: el.paused, volume: el.volume, muted: el.muted, hasStream: Boolean(el.srcObject), readyState: el.readyState } : null;
+  out.player = el ? { paused: el.paused, volume: el.volume, muted: el.muted, hasStream: Boolean(el.srcObject), readyState: el.readyState, playError: el.getAttribute("data-play-error") } : null;
   await api("/api/calls/diag", { body: { callId: state.callId, data: out } }).catch(() => {});
 }
 
