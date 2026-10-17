@@ -5,10 +5,18 @@ import { registerPlugin } from "@capacitor/core";
 import { live } from "./live";
 import { isNativeApp } from "./platform";
 
-type AudioRoute = { route: "headset" | "earpiece" | "speaker"; speaker: boolean };
+type AudioRoute = { route: "headset" | "earpiece" | "speaker"; speaker: boolean; id?: string; name?: string; kind?: string };
+/** Android: a place the call's sound can go. */
+export type Output = { id: string; kind: "earpiece" | "speaker" | "bluetooth" | "wired" | "usb" | "hearing_aid" | "other"; name: string };
 /** Android: loudspeaker or earpiece for the call's sound (a web view's call audio goes to the earpiece otherwise). */
 const CallAudio = isNativeApp
-  ? registerPlugin<{ start(o: { speaker: boolean }): Promise<AudioRoute>; setSpeaker(o: { on: boolean }): Promise<AudioRoute>; stop(): Promise<void> }>("CallAudio")
+  ? registerPlugin<{
+      start(o: { speaker: boolean }): Promise<AudioRoute>;
+      setSpeaker(o: { on: boolean }): Promise<AudioRoute>;
+      devices(): Promise<{ devices: Output[]; current: string | null }>;
+      setDevice(o: { id: string }): Promise<AudioRoute>;
+      stop(): Promise<void>;
+    }>("CallAudio")
   : null;
 
 export type CallKind = "voice" | "video";
@@ -38,6 +46,9 @@ export type CallState = {
   /** Android: where the sound plays. Headset or earbuds first, then the earpiece; the loudspeaker only when asked. */
   speaker: boolean;
   route: "headset" | "earpiece" | "speaker";
+  /** Android: every output by name, and the one in use. */
+  outputs: Output[];
+  outputId: string | null;
   devices: Devices;
 };
 
@@ -62,6 +73,8 @@ const IDLE: CallState = {
   speakerId: null,
   speaker: false,
   route: "earpiece",
+  outputs: [],
+  outputId: null,
   devices: { mics: [], cams: [], speakers: [] },
 };
 
@@ -154,7 +167,8 @@ export async function listDevices() {
 async function report(when: string) {
   if (!pc || !state.callId) return;
   const stats = await pc.getStats().catch(() => null);
-  const out: Record<string, unknown> = { when, kind: state.kind, relayed: state.relayed, route: state.route, muted: state.muted, native: isNativeApp };
+  const output = state.outputs.find((o) => o.id === state.outputId);
+  const out: Record<string, unknown> = { when, kind: state.kind, relayed: state.relayed, route: state.route, output: output ? `${output.kind}:${output.name}` : null, muted: state.muted, native: isNativeApp };
   stats?.forEach((r) => {
     if (r.type === "inbound-rtp" && r.kind === "audio") out.audioIn = { bytes: r.bytesReceived, packets: r.packetsReceived, lost: r.packetsLost, energy: r.totalAudioEnergy, level: r.audioLevel };
     if (r.type === "outbound-rtp" && r.kind === "audio") out.audioOut = { bytes: r.bytesSent, packets: r.packetsSent };
@@ -172,7 +186,8 @@ function startAudio() {
   if (!CallAudio || audioOn) return;
   audioOn = true;
   void CallAudio.start({ speaker: false })
-    .then((r) => set({ speaker: r.speaker, route: r.route }))
+    .then((r) => set({ speaker: r.speaker, route: r.route, outputId: r.id ?? null }))
+    .then(() => calls.loadOutputs())
     .catch(() => {});
 }
 
@@ -389,13 +404,35 @@ export const calls = {
   useSpeaker(id: string) {
     set({ speakerId: id });
   },
+  /** Android: the list of outputs (earpiece, loudspeaker, each headset by name). */
+  async loadOutputs() {
+    if (!CallAudio) return;
+    const r = await CallAudio.devices().catch(() => null);
+    if (r) set({ outputs: r.devices, outputId: r.current });
+  },
+  /** Hear the call on this output: Android by id, a browser through setSinkId. */
+  async useOutput(id: string) {
+    if (!CallAudio) return this.useSpeaker(id);
+    const r = await CallAudio.setDevice({ id }).catch(() => null);
+    if (r) set({ speaker: r.speaker, route: r.route, outputId: r.id ?? id });
+    await this.loadOutputs();
+  },
+  /** The other person's sound level as it arrives (0..1), from the connection itself. */
+  async levelIn() {
+    const stats = await pc?.getStats().catch(() => null);
+    let level = 0;
+    stats?.forEach((r) => {
+      if (r.type === "inbound-rtp" && r.kind === "audio" && typeof r.audioLevel === "number") level = r.audioLevel;
+    });
+    return level;
+  },
   /** Android: the loudspeaker, or back to the headset/earbuds (else the earpiece). */
   async toggleSpeaker() {
     const on = !state.speaker;
     set({ speaker: on });
     if (CallAudio) {
       const r = await CallAudio.setSpeaker({ on }).catch((): AudioRoute => ({ speaker: on, route: on ? "speaker" : "earpiece" }));
-      set({ speaker: r.speaker, route: r.route });
+      set({ speaker: r.speaker, route: r.route, outputId: r.id ?? state.outputId });
     }
   },
 };

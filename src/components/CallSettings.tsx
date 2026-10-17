@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
+import { AudioCheck } from "./AudioCheck";
 
 /** Settings › Calls: receive calls, or not. Callers are told you aren't taking calls, never why. */
 export function CallSettings() {
@@ -41,6 +42,7 @@ export function CallSettings() {
           <span className={`absolute top-[3px] size-5 rounded-full transition-[left] ${receive ? "left-[23px] bg-white" : "left-[3px] bg-dim"}`} />
         </button>
       </div>
+      <AudioCheck />
     </section>
   );
 }

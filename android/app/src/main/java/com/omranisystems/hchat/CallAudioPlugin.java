@@ -4,6 +4,7 @@ import android.content.Context;
 import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.os.Build;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -62,6 +63,82 @@ public class CallAudioPlugin extends Plugin {
         call.resolve();
     }
 
+    private static String kind(int type) {
+        if (type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) return "speaker";
+        if (type == AudioDeviceInfo.TYPE_BUILTIN_EARPIECE) return "earpiece";
+        if (type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && type == AudioDeviceInfo.TYPE_BLE_HEADSET)) return "bluetooth";
+        if (type == AudioDeviceInfo.TYPE_WIRED_HEADSET || type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES) return "wired";
+        if (type == AudioDeviceInfo.TYPE_USB_HEADSET) return "usb";
+        if (type == AudioDeviceInfo.TYPE_HEARING_AID) return "hearing_aid";
+        return "other";
+    }
+
+    /** Every place the call's sound can go, by name ("Galaxy Buds2", the earpiece, the loudspeaker…), and the current one. */
+    @PluginMethod
+    public void devices(PluginCall call) {
+        AudioManager am = audio();
+        JSArray list = new JSArray();
+        String current = null;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            for (AudioDeviceInfo d : am.getAvailableCommunicationDevices()) {
+                JSObject o = new JSObject();
+                o.put("id", String.valueOf(d.getId()));
+                o.put("kind", kind(d.getType()));
+                o.put("name", d.getProductName() == null ? "" : d.getProductName().toString());
+                list.put(o);
+            }
+            AudioDeviceInfo cur = am.getCommunicationDevice();
+            if (cur != null) current = String.valueOf(cur.getId());
+        } else {
+            String[][] base = { { "earpiece", "earpiece" }, { "speaker", "speaker" } };
+            for (String[] b : base) {
+                JSObject o = new JSObject();
+                o.put("id", b[0]);
+                o.put("kind", b[1]);
+                o.put("name", "");
+                list.put(o);
+            }
+            if (hasBluetoothHeadset(am)) {
+                JSObject o = new JSObject();
+                o.put("id", "bluetooth");
+                o.put("kind", "bluetooth");
+                o.put("name", "");
+                list.put(o);
+            }
+            current = am.isSpeakerphoneOn() ? "speaker" : am.isBluetoothScoOn() ? "bluetooth" : "earpiece";
+        }
+        JSObject out = new JSObject();
+        out.put("devices", list);
+        out.put("current", current);
+        call.resolve(out);
+    }
+
+    /** The call's sound (and the matching microphone) on this device. */
+    @PluginMethod
+    public void setDevice(PluginCall call) {
+        String id = call.getString("id", "");
+        AudioManager am = audio();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            for (AudioDeviceInfo d : am.getAvailableCommunicationDevices()) {
+                if (String.valueOf(d.getId()).equals(id)) {
+                    am.setCommunicationDevice(d);
+                    break;
+                }
+            }
+        } else {
+            boolean bt = "bluetooth".equals(id);
+            am.setSpeakerphoneOn("speaker".equals(id));
+            if (bt) {
+                am.startBluetoothSco();
+                am.setBluetoothScoOn(true);
+            } else if (am.isBluetoothScoOn()) {
+                am.setBluetoothScoOn(false);
+                am.stopBluetoothSco();
+            }
+        }
+        call.resolve(state(am));
+    }
+
     /** speaker: the loudspeaker. Otherwise: a headset if one is connected, else the earpiece. */
     private void route(AudioManager am, boolean speaker) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -100,6 +177,11 @@ public class CallAudioPlugin extends Plugin {
             AudioDeviceInfo d = am.getCommunicationDevice();
             int t = d == null ? -1 : d.getType();
             route = t == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER ? "speaker" : isHeadset(t) ? "headset" : "earpiece";
+            if (d != null) {
+                out.put("id", String.valueOf(d.getId()));
+                out.put("name", d.getProductName() == null ? "" : d.getProductName().toString());
+                out.put("kind", kind(t));
+            }
         } else {
             boolean wired = false;
             for (AudioDeviceInfo d : am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)) {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { calls, listDevices, type CallState } from "../lib/calls";
+import { calls, listDevices, type CallState, type Output } from "../lib/calls";
+import { playTestTone } from "../lib/audioCheck";
 import { isNativeApp } from "../lib/platform";
 import { Avatar } from "./PageHeader";
 
@@ -129,7 +130,7 @@ function Level({ stream, muted }: { stream: MediaStream | null; muted: boolean }
   }, [stream]);
   return (
     <div className="flex items-center gap-2.5">
-      <span className="font-mono text-[10.5px] text-faint">level</span>
+      <span className="w-[86px] shrink-0 font-mono text-[10.5px] text-faint">your mic</span>
       <span className="h-1.5 grow overflow-hidden rounded-full bg-line">
         <span className="block h-full bg-online transition-[width]" style={{ width: `${muted ? 0 : Math.round(level * 100)}%` }} />
       </span>
@@ -138,9 +139,40 @@ function Level({ stream, muted }: { stream: MediaStream | null; muted: boolean }
   );
 }
 
+const OUTPUT_NAME: Record<Output["kind"], string> = {
+  earpiece: "Phone earpiece",
+  speaker: "Loudspeaker",
+  bluetooth: "Bluetooth headset",
+  wired: "Wired headphones",
+  usb: "USB headset",
+  hearing_aid: "Hearing aid",
+  other: "Audio device",
+};
+const outputLabel = (o: Output) => (o.kind === "earpiece" || o.kind === "speaker" ? OUTPUT_NAME[o.kind] : o.name ? `${o.name} (${OUTPUT_NAME[o.kind].toLowerCase()})` : OUTPUT_NAME[o.kind]);
+
+/** The other person's sound as it arrives: shows whether their voice reaches this device at all. */
+function IncomingLevel({ active }: { active: boolean }) {
+  const [level, setLevel] = useState(0);
+  useEffect(() => {
+    if (!active) return;
+    const t = setInterval(() => void calls.levelIn().then(setLevel), 400);
+    return () => clearInterval(t);
+  }, [active]);
+  return (
+    <div className="flex items-center gap-2.5">
+      <span className="w-[86px] shrink-0 font-mono text-[10.5px] text-faint">their voice</span>
+      <span className="h-1.5 grow overflow-hidden rounded-full bg-line">
+        <span className="block h-full bg-live transition-[width]" style={{ width: `${Math.min(100, Math.round(Math.sqrt(level) * 140))}%` }} />
+      </span>
+    </div>
+  );
+}
+
 function DevicePanel({ s, onClose, side }: { s: CallState; onClose: () => void; side: boolean }) {
+  const [tone, setTone] = useState("");
   useEffect(() => {
     void listDevices();
+    void calls.loadOutputs();
   }, []);
   const current = (kind: "audio" | "video") => s.local?.getTracks().find((t) => t.kind === kind)?.getSettings().deviceId ?? "";
   const pick = (label: string, list: MediaDeviceInfo[], value: string, onChange: (id: string) => void, empty: string) => (
@@ -150,34 +182,87 @@ function DevicePanel({ s, onClose, side }: { s: CallState; onClose: () => void; 
         {list.length ? null : <option value="">{empty}</option>}
         {list.map((d, i) => (
           <option key={d.deviceId || i} value={d.deviceId}>
-            {d.label || `${label} ${i + 1}`}
+            {d.label || `${empty} ${i + 1}`}
           </option>
         ))}
       </select>
     </label>
   );
-  const canSpeaker = typeof (HTMLMediaElement.prototype as { setSinkId?: unknown }).setSinkId === "function";
+  const canSink = typeof (HTMLMediaElement.prototype as { setSinkId?: unknown }).setSinkId === "function";
+  async function test() {
+    setTone("playing a test sound…");
+    try {
+      await playTestTone(s.speakerId);
+      setTone("Did you hear two beeps? If not, choose another output above.");
+    } catch {
+      setTone("The test sound couldn't play on this device.");
+    }
+  }
   const body = (
     <>
       <div className="flex items-center justify-between">
-        <h2 className="m-0 text-lg font-extrabold">Microphone and camera</h2>
+        <h2 className="m-0 text-lg font-extrabold">Sound and microphone</h2>
         <button type="button" onClick={onClose} aria-label="Close" className="grid size-9 place-items-center rounded-lg bg-transparent text-dim">
           ✕
         </button>
       </div>
-      {pick("microphone", s.devices.mics, s.micId ?? current("audio"), (id) => void calls.useMic(id), "Default microphone")}
-      <Level stream={s.local} muted={s.muted} />
-      {s.kind === "video" ? pick("camera", s.devices.cams, s.camId ?? current("video"), (id) => void calls.useCamera(id), "Default camera") : null}
-      {canSpeaker && s.devices.speakers.length ? pick("speaker", s.devices.speakers, s.speakerId ?? "default", (id) => calls.useSpeaker(id), "Default speaker") : null}
-      <p className="m-0 text-xs leading-normal text-faint">Changes apply at once, without hanging up.</p>
+
+      <section aria-labelledby="out-title" className="flex flex-col gap-2">
+        <h3 id="out-title" className="m-0 font-mono text-[10.5px] uppercase tracking-[0.12em] text-dim">
+          hear on (output)
+        </h3>
+        {isNativeApp ? (
+          <div role="radiogroup" aria-label="Hear on" className="flex flex-col gap-1.5">
+            {s.outputs.length === 0 ? <p className="m-0 text-[12.5px] text-faint">Looking for outputs…</p> : null}
+            {s.outputs.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                role="radio"
+                aria-checked={s.outputId === o.id}
+                onClick={() => void calls.useOutput(o.id)}
+                className={`flex min-h-11 items-center gap-3 rounded-xl border px-3 text-left text-[14px] ${s.outputId === o.id ? "border-accent bg-accent/10 font-bold text-ink" : "border-line text-ink-soft"}`}
+              >
+                <span className={`grid size-[18px] place-items-center rounded-full border-2 ${s.outputId === o.id ? "border-accent" : "border-faint"}`}>
+                  {s.outputId === o.id ? <span className="size-2 rounded-full bg-accent" /> : null}
+                </span>
+                {outputLabel(o)}
+              </button>
+            ))}
+          </div>
+        ) : canSink && s.devices.speakers.length ? (
+          pick("speaker", s.devices.speakers, s.speakerId ?? "default", (id) => void calls.useOutput(id), "Speaker")
+        ) : (
+          <p className="m-0 text-[12.5px] text-faint">This browser plays calls on the computer's default output.</p>
+        )}
+        <IncomingLevel active />
+        <button type="button" onClick={() => void test()} className="min-h-10 self-start rounded-xl border border-line-strong bg-transparent px-3.5 text-[13px] font-semibold text-ink">
+          Play a test sound
+        </button>
+        {tone ? <p className="m-0 text-[12px] text-dim">{tone}</p> : null}
+      </section>
+
+      <section aria-labelledby="in-title" className="flex flex-col gap-2">
+        <h3 id="in-title" className="m-0 font-mono text-[10.5px] uppercase tracking-[0.12em] text-dim">
+          speak with (input)
+        </h3>
+        {pick("microphone", s.devices.mics, s.micId ?? current("audio"), (id) => void calls.useMic(id), "Microphone")}
+        <Level stream={s.local} muted={s.muted} />
+        {isNativeApp ? <p className="m-0 text-[11.5px] leading-normal text-faint">A Bluetooth headset chosen above also uses its own microphone.</p> : null}
+      </section>
+
+      {s.kind === "video" ? pick("camera", s.devices.cams, s.camId ?? current("video"), (id) => void calls.useCamera(id), "Camera") : null}
+      <p className="m-0 text-xs leading-normal text-faint">
+        "Their voice" moves when sound arrives from {s.peer?.username ?? "them"}; the green bar when your microphone picks you up. Changes apply at once, without hanging up.
+      </p>
     </>
   );
-  if (side) return <aside aria-label="Microphone and camera" className="flex w-[320px] shrink-0 flex-col gap-4 rounded-[20px] border border-line-strong bg-panel p-5">{body}</aside>;
+  if (side) return <aside aria-label="Sound and microphone" className="flex w-[340px] shrink-0 flex-col gap-4 overflow-y-auto rounded-[20px] border border-line-strong bg-panel p-5">{body}</aside>;
   return (
     <div className="absolute inset-0 z-10 flex flex-col justify-end bg-black/50" onClick={onClose}>
-      <section role="dialog" aria-label="Microphone and camera" onClick={(e) => e.stopPropagation()} className="flex flex-col gap-3.5 rounded-t-[26px] border-t border-line-strong bg-panel px-[18px] pb-7 pt-4">
+      <section role="dialog" aria-label="Sound and microphone" onClick={(e) => e.stopPropagation()} className="flex max-h-[88dvh] flex-col gap-4 overflow-y-auto rounded-t-[26px] border-t border-line-strong bg-panel px-[18px] pb-7 pt-4">
         {body}
-        <button type="button" onClick={onClose} className="min-h-[50px] rounded-[14px] bg-brand text-[15px] font-bold text-white">
+        <button type="button" onClick={onClose} className="min-h-[50px] shrink-0 rounded-[14px] bg-brand text-[15px] font-bold text-white">
           Done
         </button>
       </section>
@@ -272,13 +357,13 @@ export function CallScreen() {
       {isNativeApp ? (
         <Control
           icon={s.speaker ? "speaker" : s.route === "headset" ? "headset" : "earpiece"}
-          label={s.speaker ? "Speaker on" : s.route === "headset" ? "Headset" : "Earpiece"}
+          label={s.speaker ? "Speaker on" : s.route === "headset" ? (s.outputs.find((o) => o.id === s.outputId)?.name || "Headset").slice(0, 14) : "Earpiece"}
           tone={s.speaker ? "on" : "plain"}
           onClick={() => void calls.toggleSpeaker()}
           disabled={s.phase === "ended"}
         />
       ) : null}
-      <Control icon="gear" label="Devices" onClick={() => setDevices((d) => !d)} disabled={s.phase === "ended"} />
+      <Control icon="gear" label="Sound" onClick={() => setDevices((d) => !d)} disabled={s.phase === "ended"} />
       <Control icon="hang" label="Hang up" tone="danger" onClick={() => (s.phase === "ended" ? calls.dismiss() : calls.hangUp())} />
     </div>
   );
