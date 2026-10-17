@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Notice } from "./Screen";
 import { api } from "../lib/api";
-import { enableNotifications, permission, type NotifyPrefs, type Permission } from "../lib/notifications";
+import { enableNotifications, getFcmStatus, onFcmStatus, permission, registerFcm, type FcmStatus, type NotifyPrefs, type Permission } from "../lib/notifications";
 import { isNativeApp } from "../lib/platform";
 
 const KINDS: { key: keyof NotifyPrefs; label: string; hint: string }[] = [
@@ -15,6 +15,8 @@ export function NotificationSettings() {
   const [perm, setPerm] = useState<Permission | null>(null);
   const [prefs, setPrefs] = useState<NotifyPrefs | null>(null);
   const [error, setError] = useState("");
+  const [fcm, setFcm] = useState<FcmStatus>(getFcmStatus());
+  useEffect(() => onFcmStatus(setFcm), []);
 
   useEffect(() => {
     void permission().then(setPerm, () => setPerm("unsupported"));
@@ -74,6 +76,34 @@ export function NotificationSettings() {
             <span className="shrink-0 font-mono text-[11px] font-bold text-online">ON</span>
           ) : null}
         </div>
+        {isNativeApp ? (
+          <div className="flex flex-wrap items-center gap-3 border-t border-line px-4 py-3.5">
+            <span className="flex min-w-[10rem] flex-1 flex-col gap-0.5">
+              <span className="text-[15px] font-semibold">When H_CHAT is closed</span>
+              <span className={`break-words text-[12.5px] leading-snug ${fcm.state === "error" ? "text-danger-ink" : "text-dim"}`}>
+                {fcm.state === "on"
+                  ? "On: messages and calls arrive even when the app is closed (Google only sees “New message”, “Incoming call”)."
+                  : fcm.state === "working"
+                    ? `Setting up… ${fcm.detail}`
+                    : fcm.state === "error"
+                      ? `Not working: ${fcm.detail}`
+                      : "Not set up yet."}
+              </span>
+            </span>
+            {fcm.state === "on" ? (
+              <span className="shrink-0 font-mono text-[11px] font-bold text-online">ON</span>
+            ) : (
+              <button
+                type="button"
+                disabled={fcm.state === "working"}
+                onClick={() => void registerFcm(true)}
+                className="min-h-11 shrink-0 rounded-[11px] border border-line-strong bg-transparent px-4 text-[13.5px] font-bold text-ink disabled:opacity-50"
+              >
+                {fcm.state === "error" ? "Try again" : "Set up"}
+              </button>
+            )}
+          </div>
+        ) : null}
         {prefs
           ? KINDS.map((k) => (
               <label key={k.key} className="flex min-h-[58px] cursor-pointer items-center gap-3 border-t border-line px-4 py-2.5">

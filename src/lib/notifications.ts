@@ -74,30 +74,60 @@ let fcmActive = false;
 const fcmHandles: { remove: () => Promise<void> }[] = [];
 const push = () => import("@capacitor/push-notifications").then((m) => m.PushNotifications);
 
+/** Where Firebase registration stands on this phone, shown in Settings (and reported to the server to help). */
+export type FcmStatus = { state: "off" | "working" | "on" | "error"; detail: string };
+let fcmStatus: FcmStatus = { state: "off", detail: "" };
+const fcmListeners = new Set<(s: FcmStatus) => void>();
+function setFcm(state: FcmStatus["state"], detail = "") {
+  fcmStatus = { state, detail };
+  fcmListeners.forEach((fn) => fn(fcmStatus));
+  if (state !== "working") void api("/api/notifications/fcm-status", { body: { state, detail: detail.slice(0, 300) } }).catch(() => {});
+}
+export const getFcmStatus = () => fcmStatus;
+export function onFcmStatus(fn: (s: FcmStatus) => void) {
+  fcmListeners.add(fn);
+  return () => void fcmListeners.delete(fn);
+}
+
 /**
  * Registers this phone with Firebase so events still arrive when the app is closed. Google only gets generic texts
  * ("New message", "Incoming call"); tapping one opens the app. Calls ring on their own channel.
+ * `ask`: from a tap, the permission may be asked.
  */
-export async function registerFcm() {
+export async function registerFcm(ask = false) {
   if (!isNativeApp) return false;
+  setFcm("working", "checking the permission");
   try {
     const p = await push();
-    const perm = await p.checkPermissions();
-    if (perm.receive !== "granted") return false;
-    await p.createChannel({ id: "hc_calls", name: "Calls", description: "Incoming voice and video calls", importance: 5, visibility: 1, sound: "default", vibration: true });
+    let perm = (await p.checkPermissions()).receive;
+    if (perm !== "granted" && ask) perm = (await p.requestPermissions()).receive;
+    if (perm !== "granted") {
+      setFcm("error", `notification permission: ${perm}`);
+      return false;
+    }
+    setFcm("working", "creating the notification channels");
+    // No custom sound: the phone's default notification sound and ringtone
+    await p.createChannel({ id: "hc_calls", name: "Calls", description: "Incoming voice and video calls", importance: 5, visibility: 1, vibration: true });
     await p.createChannel({ id: "hc_events", name: "Messages and invitations", description: "Messages, chat and contact invitations", importance: 4, visibility: 0, vibration: true });
     // Only this function's own listeners are replaced (the tap listener stays)
     for (const h of fcmHandles.splice(0)) await h.remove();
-    fcmHandles.push(
-      await p.addListener("registration", ({ value }) => {
-        fcmActive = true;
-        void api("/api/notifications/fcm", { body: { token: value } }).catch(() => (fcmActive = false));
-      }),
-      await p.addListener("registrationError", () => (fcmActive = false)),
-    );
+    const result = new Promise<string>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Firebase didn't answer in 20 s (are Google Play services up to date?)")), 20_000);
+      void Promise.all([
+        p.addListener("registration", ({ value }) => (clearTimeout(timer), resolve(value))),
+        p.addListener("registrationError", ({ error }) => (clearTimeout(timer), reject(new Error(error || "registration refused")))),
+      ]).then((handles) => fcmHandles.push(...handles));
+    });
+    setFcm("working", "asking Firebase for this phone's address");
     await p.register();
+    const token = await result;
+    await api("/api/notifications/fcm", { body: { token } });
+    fcmActive = true;
+    setFcm("on", "");
     return true;
-  } catch {
+  } catch (err) {
+    fcmActive = false;
+    setFcm("error", err instanceof Error ? err.message : String(err));
     return false;
   }
 }
@@ -106,7 +136,7 @@ export async function registerFcm() {
 export async function enableNotifications(): Promise<Permission> {
   if (isNativeApp) {
     const { display } = await (await local()).requestPermissions();
-    if (display === "granted") void registerFcm();
+    if (display === "granted") void registerFcm(true);
     return display === "granted" ? "granted" : display === "denied" ? "denied" : "default";
   }
   if (!webSupported()) return "unsupported";
