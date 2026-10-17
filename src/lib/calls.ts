@@ -48,6 +48,8 @@ export type CallState = {
   route: "headset" | "earpiece" | "speaker";
   /** Android: every output by name, and the one in use. */
   outputs: Output[];
+  /** Bumped when the sound output changes: the player reconnects so the web view reopens its output there. */
+  audioEpoch: number;
   outputId: string | null;
   devices: Devices;
 };
@@ -75,6 +77,7 @@ const IDLE: CallState = {
   route: "earpiece",
   outputs: [],
   outputId: null,
+  audioEpoch: 0,
   devices: { mics: [], cams: [], speakers: [] },
 };
 
@@ -168,7 +171,7 @@ async function report(when: string) {
   if (!pc || !state.callId) return;
   const stats = await pc.getStats().catch(() => null);
   const output = state.outputs.find((o) => o.id === state.outputId);
-  const out: Record<string, unknown> = { when, kind: state.kind, relayed: state.relayed, route: state.route, output: output ? `${output.kind}:${output.name}` : null, muted: state.muted, native: isNativeApp };
+  const out: Record<string, unknown> = { epoch: state.audioEpoch, when, kind: state.kind, relayed: state.relayed, route: state.route, output: output ? `${output.kind}:${output.name}` : null, muted: state.muted, native: isNativeApp };
   stats?.forEach((r) => {
     if (r.type === "inbound-rtp" && r.kind === "audio") out.audioIn = { bytes: r.bytesReceived, packets: r.packetsReceived, lost: r.packetsLost, energy: r.totalAudioEnergy, level: r.audioLevel };
     if (r.type === "outbound-rtp" && r.kind === "audio") out.audioOut = { bytes: r.bytesSent, packets: r.packetsSent };
@@ -249,8 +252,11 @@ async function connect(asCaller: boolean) {
       check();
       setTimeout(check, 2000);
       // What the call really carries (sent to the server to find audio problems): at 5 s and 15 s
+      // Android switched to call mode as the call started: reopen the player on the final output
+      setTimeout(() => set({ audioEpoch: state.audioEpoch + 1 }), 1500);
       setTimeout(() => void report("5s"), 5000);
       setTimeout(() => void report("15s"), 15000);
+      setTimeout(() => void report("30s"), 30000);
     }
     if (pc.connectionState === "failed") void fail(new Error("The connection was lost."));
   };
@@ -416,6 +422,7 @@ export const calls = {
     const r = await CallAudio.setDevice({ id }).catch(() => null);
     if (r) set({ speaker: r.speaker, route: r.route, outputId: r.id ?? id });
     await this.loadOutputs();
+    setTimeout(() => set({ audioEpoch: state.audioEpoch + 1 }), 300);
   },
   /** The other person's sound level as it arrives (0..1), from the connection itself. */
   async levelIn() {
@@ -433,6 +440,7 @@ export const calls = {
     if (CallAudio) {
       const r = await CallAudio.setSpeaker({ on }).catch((): AudioRoute => ({ speaker: on, route: on ? "speaker" : "earpiece" }));
       set({ speaker: r.speaker, route: r.route, outputId: r.id ?? state.outputId });
+      setTimeout(() => set({ audioEpoch: state.audioEpoch + 1 }), 300);
     }
   },
 };

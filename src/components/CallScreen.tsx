@@ -95,6 +95,9 @@ function RemoteAudio({ stream, sinkId }: { stream: MediaStream | null; sinkId?: 
     document.addEventListener("pointerdown", resume, true);
     return () => {
       clearInterval(t);
+      // Let go of the stream so the web view closes this output before the next player opens its own
+      el.pause();
+      el.srcObject = null;
       el.removeEventListener("pause", resume);
       el.removeEventListener("loadedmetadata", resume);
       document.removeEventListener("pointerdown", resume, true);
@@ -377,7 +380,8 @@ export function CallScreen() {
           </div>
         ) : null}
         {/* The other person's voice, always through its own element (video elements stay muted) */}
-        <RemoteAudio stream={s.remote} sinkId={s.speakerId} />
+        {/* A new element (key) each time the output changes: the web view opens its sound output again there */}
+        <RemoteAudio key={s.audioEpoch} stream={s.remote} sinkId={s.speakerId} />
         <div className="relative flex items-start gap-2.5 bg-gradient-to-b from-black/60 to-transparent px-4 pb-6 pt-[18px]">
           <div className="flex grow flex-col gap-1">
             <span className="text-[17px] font-extrabold">{name}</span>
