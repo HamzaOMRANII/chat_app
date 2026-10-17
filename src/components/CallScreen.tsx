@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { calls, listDevices, type CallState } from "../lib/calls";
+import { isNativeApp } from "../lib/platform";
 import { Avatar } from "./PageHeader";
 
 const icons = {
@@ -12,6 +13,8 @@ const icons = {
   gear: <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1" />,
   hang: <path d="M3 15c5-5 13-5 18 0l-2.5 2.5-3-1.5v-2.5a10 10 0 0 0-7 0V16l-3 1.5z" />,
   lock: <path d="M4 11h16v10H4zM8 11V7a4 4 0 0 1 8 0v4" />,
+  speaker: <path d="M4 9h4l5-4v14l-5-4H4zM16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11" />,
+  earpiece: <path d="M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM10 6h4" />,
 };
 const Icon = ({ d, size = 22 }: { d: keyof typeof icons; size?: number }) => (
   <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -52,13 +55,33 @@ function useWide() {
 function MediaView({ stream, muted, mirror, className, sinkId }: { stream: MediaStream | null; muted?: boolean; mirror?: boolean; className: string; sinkId?: string | null }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
-    if (ref.current && ref.current.srcObject !== stream) ref.current.srcObject = stream;
+    const el = ref.current;
+    if (!el || el.srcObject === stream) return;
+    el.srcObject = stream;
+    // Started explicitly: some web views don't autoplay a stream that arrives later
+    if (stream) void el.play().catch(() => {});
   }, [stream]);
   useEffect(() => {
     const el = ref.current as (HTMLVideoElement & { setSinkId?: (id: string) => Promise<void> }) | null;
     if (sinkId && el?.setSinkId) void el.setSinkId(sinkId).catch(() => {});
   }, [sinkId]);
   return <video ref={ref} autoPlay playsInline muted={muted} className={`${className} ${mirror ? "-scale-x-100" : ""}`} />;
+}
+
+/** Plays the other person's audio: an <audio> element kept in the page (not display:none), started explicitly. */
+function RemoteAudio({ stream, sinkId }: { stream: MediaStream | null; sinkId?: string | null }) {
+  const ref = useRef<HTMLAudioElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (el.srcObject !== stream) el.srcObject = stream;
+    if (stream) void el.play().catch(() => {});
+  }, [stream]);
+  useEffect(() => {
+    const el = ref.current as (HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> }) | null;
+    if (sinkId && el?.setSinkId) void el.setSinkId(sinkId).catch(() => {});
+  }, [sinkId]);
+  return <audio ref={ref} autoPlay playsInline className="pointer-events-none absolute size-px opacity-0" />;
 }
 
 /** The microphone's level, so you can see it works (and that mute does). */
@@ -224,6 +247,9 @@ export function CallScreen() {
       <Control icon={s.muted ? "micOff" : "mic"} label={s.muted ? "Unmute" : "Mute"} tone={s.muted ? "on" : "plain"} onClick={() => calls.toggleMute()} disabled={s.phase === "ended"} />
       {video ? <Control icon={s.cameraOn ? "video" : "camOff"} label={s.cameraOn ? "Camera" : "Camera off"} tone={s.cameraOn ? "plain" : "on"} onClick={() => calls.toggleCamera()} disabled={s.phase === "ended"} /> : null}
       {video && !wide ? <Control icon="flip" label="Flip" onClick={() => void calls.flip()} disabled={s.phase === "ended"} /> : null}
+      {isNativeApp ? (
+        <Control icon={s.speaker ? "speaker" : "earpiece"} label={s.speaker ? "Speaker" : "Earpiece"} tone={s.speaker ? "on" : "plain"} onClick={() => void calls.toggleSpeaker()} disabled={s.phase === "ended"} />
+      ) : null}
       <Control icon="gear" label="Devices" onClick={() => setDevices((d) => !d)} disabled={s.phase === "ended"} />
       <Control icon="hang" label="Hang up" tone="danger" onClick={() => (s.phase === "ended" ? calls.dismiss() : calls.hangUp())} />
     </div>
@@ -231,16 +257,14 @@ export function CallScreen() {
   return (
     <div role="dialog" aria-label={`Call with ${name}`} className="fixed inset-0 z-50 flex bg-[#07080C] text-ink">
       <div className={`relative flex grow flex-col overflow-hidden ${wide ? "m-4 rounded-3xl" : ""} bg-gradient-to-br from-[#22303F] via-[#3B2A44] to-[#2A1A20]`}>
-        {video && remoteHasVideo ? <MediaView stream={s.remote} className="absolute inset-0 size-full object-cover" sinkId={s.speakerId} /> : null}
+        {video && remoteHasVideo ? <MediaView stream={s.remote} muted className="absolute inset-0 size-full object-cover" /> : null}
         {!video || !remoteHasVideo ? (
-          <>
-            <div className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2 opacity-80">
-              <Avatar username={name} size={wide ? 180 : 140} />
-            </div>
-            {/* Voice: the sound plays through a hidden element */}
-            <MediaView stream={s.remote} className="hidden" sinkId={s.speakerId} />
-          </>
+          <div className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2 opacity-80">
+            <Avatar username={name} size={wide ? 180 : 140} />
+          </div>
         ) : null}
+        {/* The other person's voice, always through its own element (video elements stay muted) */}
+        <RemoteAudio stream={s.remote} sinkId={s.speakerId} />
         <div className="relative flex items-start gap-2.5 bg-gradient-to-b from-black/60 to-transparent px-4 pb-6 pt-[18px]">
           <div className="flex grow flex-col gap-1">
             <span className="text-[17px] font-extrabold">{name}</span>

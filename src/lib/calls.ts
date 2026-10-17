@@ -1,7 +1,14 @@
 import { api } from "./api";
 import { myIdentity } from "./chats";
 import { safetyCode, signCall, verifyCall } from "./e2e";
+import { registerPlugin } from "@capacitor/core";
 import { live } from "./live";
+import { isNativeApp } from "./platform";
+
+/** Android: loudspeaker or earpiece for the call's sound (a web view's call audio goes to the earpiece otherwise). */
+const CallAudio = isNativeApp
+  ? registerPlugin<{ start(o: { speaker: boolean }): Promise<{ speaker: boolean }>; setSpeaker(o: { on: boolean }): Promise<{ speaker: boolean }>; stop(): Promise<void> }>("CallAudio")
+  : null;
 
 export type CallKind = "voice" | "video";
 export type CallPeer = { id: string; username: string; identityPub: string | null };
@@ -27,6 +34,8 @@ export type CallState = {
   micId: string | null;
   camId: string | null;
   speakerId: string | null;
+  /** Android: the sound plays on the loudspeaker (true) or the earpiece. */
+  speaker: boolean;
   devices: Devices;
 };
 
@@ -49,6 +58,7 @@ const IDLE: CallState = {
   micId: null,
   camId: null,
   speakerId: null,
+  speaker: true,
   devices: { mics: [], cams: [], speakers: [] },
 };
 
@@ -137,8 +147,20 @@ export async function listDevices() {
   }
 }
 
+let audioOn = false;
+/** Android: call audio mode, on the loudspeaker to start with. */
+function startAudio() {
+  if (!CallAudio || audioOn) return;
+  audioOn = true;
+  void CallAudio.start({ speaker: state.speaker })
+    .then((r) => set({ speaker: r.speaker }))
+    .catch(() => {});
+}
+
 function cleanup() {
   stopRing();
+  if (CallAudio && audioOn) void CallAudio.stop().catch(() => {});
+  audioOn = false;
   clearInterval(tick);
   pc?.close();
   pc = null;
@@ -172,6 +194,7 @@ async function connect(asCaller: boolean) {
   pc = new RTCPeerConnection({ iceServers: await iceServers(), iceTransportPolicy: relayOnly ? "relay" : "all" });
   const local = state.local!;
   for (const track of local.getTracks()) pc.addTrack(track, local);
+  startAudio();
   pc.ontrack = (e) => set({ remote: e.streams[0] ?? new MediaStream([e.track]) });
   pc.onicecandidate = (e) => e.candidate && live.send("call:signal", { callId, to: peerId, data: { candidate: e.candidate.toJSON() } });
   pc.onconnectionstatechange = () => {
@@ -343,6 +366,12 @@ export const calls = {
   },
   useSpeaker(id: string) {
     set({ speakerId: id });
+  },
+  /** Android: loudspeaker or earpiece (headset or earbuds when connected). */
+  async toggleSpeaker() {
+    const on = !state.speaker;
+    set({ speaker: on });
+    if (CallAudio) set({ speaker: (await CallAudio.setSpeaker({ on }).catch(() => ({ speaker: on }))).speaker });
   },
 };
 
