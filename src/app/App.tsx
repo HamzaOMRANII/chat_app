@@ -9,6 +9,8 @@ import { AddContactPage } from "../pages/AddContactPage";
 import { ChatPage } from "../pages/ChatPage";
 import { LivePage } from "../pages/LivePage";
 import { MediaPage } from "../pages/MediaPage";
+import { CallScreen } from "../components/CallScreen";
+import { attachCalls } from "../lib/calls";
 import { SafetyPage } from "../pages/SafetyPage";
 import { prepareDevice } from "../lib/chats";
 import { CHAT_EVENTS, live } from "../lib/live";
@@ -196,7 +198,7 @@ export function App() {
       const current = screenRef.current;
       const here = (current.name === "chat" && note.tag === `chat:${current.chatId}`) || (current.name === "live" && note.tag === `live:${current.sessionId}`);
       // The open chat shows its own messages; an accepted chat opens by itself
-      if ((note.kind === "message" && here) || note.kind === "chat_accepted") return;
+      if ((note.kind === "message" && here) || note.kind === "chat_accepted" || (note.kind === "call" && note.body.startsWith("Incoming"))) return;
       // The live chat on screen says itself that it ended
       if (here && (note.kind === "chat_ended" || note.kind === "chat_declined")) return;
       if ((note.kind === "chat_ended" || note.kind === "chat_declined") && Date.now() - (closedHere.current.get(note.tag) ?? 0) < 15_000) return;
@@ -234,7 +236,7 @@ export function App() {
     for (const event of CHAT_EVENTS) {
       socket.on(event, (payload: unknown) => {
         live.dispatch(event, payload);
-        if (event !== "typing" && event !== "msg:status" && event !== "live" && event !== "live:peer" && event !== "files:deleted" && event !== "exports:changed") setContactsVersion((v) => v + 1);
+        if (event !== "typing" && event !== "msg:status" && event !== "live" && event !== "live:peer" && event !== "files:deleted" && event !== "exports:changed" && !event.startsWith("call:")) setContactsVersion((v) => v + 1);
       });
     }
     live.attach(socket);
@@ -266,6 +268,7 @@ export function App() {
   useEffect(() => {
     if (!signedIn || !userId) return;
     void prepareDevice(userId).catch(() => {});
+    attachCalls(userId);
     void syncNotifications();
   }, [signedIn, userId]);
 
@@ -297,6 +300,7 @@ export function App() {
     <>
       {page()}
       <Banners banners={banners} onDismiss={dismissBanner} />
+      {signedIn ? <CallScreen /> : null}
     </>
   );
 

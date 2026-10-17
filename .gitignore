@@ -11,3 +11,6 @@ android/local.properties
 android/keystore.properties
 *.keystore
 *.jks
+# Firebase: the server key is a secret, and the app config stays out of the repository too
+*firebase-adminsdk*.json
+google-services.json

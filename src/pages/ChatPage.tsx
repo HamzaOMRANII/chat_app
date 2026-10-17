@@ -15,6 +15,7 @@ import type { ExportReq } from "../lib/exports";
 import { FileBubble } from "../components/FileBubble";
 import { MediaViewer } from "../components/MediaViewer";
 import { useViewOnlyProtection } from "../lib/protect";
+import { calls } from "../lib/calls";
 import { bytes, downloadFile, forgetFiles, saveBlob, uploadFile, type FileInfo, type FileRef } from "../lib/files";
 
 type Shown = { id: string; mine: boolean; text: string | null; file?: FileRef; sentAt: string; deliveredAt: string | null; readAt: string | null; expiresAt: string };
@@ -401,6 +402,29 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
   const locked = visibleMessages.filter((m) => m.text === null).length;
   const typing = typingUntil > now;
 
+  /** Voice and video calls: green, first on a phone (their own row), next to the other buttons on a wide screen. */
+  function callButtons(row: boolean) {
+    if (!peer) return null;
+    const start = (kind: "voice" | "video") => void calls.start({ id: peer.id, username: peer.username, identityPub: peer.identityPub }, kind);
+    const style = `inline-flex shrink-0 items-center justify-center gap-1.5 rounded-field border border-[#1F8A5B] bg-[#1F8A5B]/[0.12] text-[#7FE3B6] ${row ? "min-h-10 flex-1 text-[12.5px] font-bold" : "size-11"}`;
+    return (
+      <>
+        <button type="button" onClick={() => start("voice")} aria-label="Voice call" title="Voice call" className={style}>
+          <svg viewBox="0 0 24 24" width={row ? 16 : 19} height={row ? 16 : 19} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" />
+          </svg>
+          {row ? <span aria-hidden="true">Call</span> : null}
+        </button>
+        <button type="button" onClick={() => start("video")} aria-label="Video call" title="Video call" className={style}>
+          <svg viewBox="0 0 24 24" width={row ? 16 : 19} height={row ? 16 : 19} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M3 6h12v12H3zM15 10l6-3v10l-6-3" />
+          </svg>
+          {row ? <span aria-hidden="true">Video</span> : null}
+        </button>
+      </>
+    );
+  }
+
   /** Media and Live: in the header on a wide screen, in their own row (with words) on a phone. */
   function extras(row: boolean) {
     const live = liveWith || liveAllowed;
@@ -469,6 +493,7 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
         </div>
         {chat?.status === "active" ? (
           <>
+            {wide ? callButtons(false) : null}
             {wide ? extras(false) : null}
             <button type="button" onClick={() => onSafety(chat)} aria-label="Safety code" className="grid size-11 shrink-0 place-items-center rounded-field border border-line bg-panel text-ink">
               <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -487,7 +512,12 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
           </>
         ) : null}
       </header>
-      {chat?.status === "active" && !wide ? <div className="flex gap-2 border-b border-line px-3 py-2">{extras(true)}</div> : null}
+      {chat?.status === "active" && !wide ? (
+        <div className="flex flex-col gap-2 border-b border-line px-3 py-2">
+          <div className="flex gap-2">{callButtons(true)}</div>
+          <div className="flex gap-2">{extras(true)}</div>
+        </div>
+      ) : null}
 
       {chat?.status === "active" ? (
         <p className="m-0 flex items-center gap-2.5 border-b border-line bg-panel px-[18px] py-2 font-mono text-[11px] text-dim">
