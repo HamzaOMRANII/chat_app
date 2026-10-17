@@ -69,7 +69,10 @@ export function MediaViewer({ file, from, sentAt, expiresIn, canSave, viewOnly =
               className="absolute inset-0 size-full object-contain"
             />
           ) : file.mime.startsWith("image/") ? (
-            <img src={url} alt={file.name} draggable={false} className="absolute inset-0 size-full object-contain" />
+            <>
+              <img src={url} alt={file.name} draggable={false} className="absolute inset-0 size-full object-contain" />
+              {viewOnly ? <span className="absolute inset-0" aria-hidden="true" /> : null}
+            </>
           ) : isText ? (
             <pre className="absolute inset-0 m-0 overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-[13px] leading-relaxed text-ink-soft">{text ?? ""}</pre>
           ) : (

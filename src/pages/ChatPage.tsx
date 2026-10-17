@@ -360,7 +360,7 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
   }
 
   // A view-only file from the other side is on screen: no screenshots (Android), no right-click (web)
-  useViewOnlyProtection(messages.some((m) => !m.mine && m.file?.view && files.get(m.file.id)?.status !== "deleted"));
+  useViewOnlyProtection(messages.some((m) => m.file?.view && files.get(m.file.id)?.status !== "deleted"));
   const peer = chat?.with;
   const peerId = chat?.status === "active" ? peer?.id : undefined;
   useEffect(() => {
@@ -654,7 +654,7 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
           sentAt={time(viewing.sentAt)}
           expiresIn={deletedIn(viewing.expiresAt, now).replace(/^deleted /, "")}
           canSave={canSave(viewing.file, viewing.mine)}
-          viewOnly={!viewing.mine && Boolean(viewing.file.view)}
+          viewOnly={Boolean(viewing.file.view)}
           onClose={() => setViewing(null)}
         />
       ) : null}

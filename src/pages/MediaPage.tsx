@@ -70,10 +70,12 @@ function Thumb({ item, selected, now, onToggle }: { item: Item; selected: boolea
       aria-checked={selected}
       aria-label={`${item.file.name}, ${bytes(item.file.size)}`}
       onClick={onToggle}
-      data-view-only={!item.mine && item.file.view ? "" : undefined}
+      data-view-only={item.file.view ? "" : undefined}
       className={`relative aspect-square overflow-hidden rounded-[10px] bg-gradient-to-br from-[#2A3A55] to-[#3B2A44] p-0 ${selected ? "outline outline-2 -outline-offset-2 outline-accent" : ""}`}
     >
-      {url ? <img src={url} alt="" draggable={false} className="absolute inset-0 size-full object-cover" /> : <span className="absolute inset-0 grid place-items-center text-ink-soft">{<Icon d={image ? "doc" : "video"} size={22} />}</span>}
+      {url ? <img src={url} alt="" draggable={false} className="absolute inset-0 size-full object-cover" /> : null}
+      {item.file.view ? <span className="absolute inset-0" aria-hidden="true" /> : null}
+      {url ? null : <span className="absolute inset-0 grid place-items-center text-ink-soft">{<Icon d={image ? "doc" : "video"} size={22} />}</span>}
       <span
         className={`absolute left-1.5 top-1.5 grid size-[22px] place-items-center rounded-full border-2 ${selected ? "border-ink bg-brand text-white" : "border-ink-soft bg-black/35"}`}
         aria-hidden="true"
@@ -100,7 +102,7 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
   const [error, setError] = useState("");
   const [confirm, setConfirm] = useState<string[] | null>(null);
   const now = Date.now();
-  useViewOnlyProtection(Boolean(items?.some((i) => !i.mine && i.file.view)));
+  useViewOnlyProtection(Boolean(items?.some((i) => i.file.view)));
 
   const load = useCallback(async () => {
     try {
