@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Logo, Wordmark } from "../components/Logo";
 import { Avatar } from "../components/PageHeader";
+import { NotificationPrompt } from "../components/NotificationSettings";
 import { Notice } from "../components/Screen";
 import { api } from "../lib/api";
 import { modeLabel, type Chat } from "../lib/chats";
@@ -177,6 +178,7 @@ export function ContactsPage({
           </Notice>
         ) : null}
         {error ? <Notice tone="error">{error}</Notice> : null}
+        <NotificationPrompt />
 
         {invitations.length ? (
           <section aria-labelledby="invitations" className="flex flex-col gap-2.5">

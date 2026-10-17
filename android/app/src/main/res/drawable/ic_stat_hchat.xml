@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Status-bar icon for H_CHAT notifications: the logo's ring and S, in one color (Android tints it). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="128"
+    android:viewportHeight="128">
+    <group android:translateX="4" android:translateY="4">
+        <path
+            android:pathData="M60,14 A46,46 0 1,1 59.99,14 Z"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="10"
+            android:fillColor="#00000000" />
+        <path
+            android:pathData="M104,32H52Q40,32 40,44V48Q40,60 52,60H68Q80,60 80,72V76Q80,88 68,88H16"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="13"
+            android:fillColor="#00000000" />
+    </group>
+</vector>

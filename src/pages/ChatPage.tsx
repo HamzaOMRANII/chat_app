@@ -2,13 +2,21 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import { Avatar } from "../components/PageHeader";
 import { Notice } from "../components/Screen";
 import { api, ApiError } from "../lib/api";
-import { ensureMyKey, forgetChat, keepChatKey, latestKey, makeChatKey, modeLabel, theirVerifiedKey, type Chat, type WireMessage } from "../lib/chats";
+import { ensureMyKey, forgetChat, keepChatKey, latestKey, longDuration, makeChatKey, modeLabel, theirVerifiedKey, type Chat, type WireMessage } from "../lib/chats";
 import { lastSeen } from "../lib/contacts";
 import { decryptMessage, encryptMessage } from "../lib/e2e";
 import { live } from "../lib/live";
 
 type Shown = { id: string; mine: boolean; text: string | null; sentAt: string; deliveredAt: string | null; readAt: string | null; expiresAt: string };
-type Props = { chatId: string; userId: string; onBack: () => void; onSafety: (chat: Chat) => void; onAuthError: (err: unknown) => boolean };
+type Props = {
+  chatId: string;
+  userId: string;
+  onBack: () => void;
+  /** The chat ended (either side, the rules, the admin): back to the list, with this explanation. */
+  onClosed: (text: string) => void;
+  onSafety: (chat: Chat) => void;
+  onAuthError: (err: unknown) => boolean;
+};
 
 const MAX_LENGTH = 4000;
 const TYPING_SHOWN_MS = 4000;
@@ -21,6 +29,8 @@ const ENDED: Record<string, (who: string, byMe: boolean) => string> = {
   invite_expired: () => "The invitation expired without an answer.",
   expired: () => "This chat ended: all its messages had expired.",
   deleted_by_admin: () => "This chat was closed by the administrator. All messages were deleted.",
+  rules_changed: () => "This chat was closed: its duration is no longer allowed for this contact. All messages were deleted.",
+  contact_unavailable: (who) => `This chat was closed: ${who} is no longer available as a contact. All messages were deleted.`,
 };
 const endedText = (reason: string, who: string, byMe: boolean) => (ENDED[reason] ?? (() => "This chat was closed."))(who, byMe);
 
@@ -44,10 +54,9 @@ function dayLabel(iso: string) {
 
 const badgeTone = (mode: Chat["mode"]) => (mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep");
 
-export function ChatPage({ chatId, userId, onBack, onSafety, onAuthError }: Props) {
+export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onAuthError }: Props) {
   const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Shown[]>([]);
-  const [ended, setEnded] = useState<{ reason: string; byMe: boolean } | null>(null);
   const [error, setError] = useState("");
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -58,18 +67,28 @@ export function ChatPage({ chatId, userId, onBack, onSafety, onAuthError }: Prop
   const bottom = useRef<HTMLDivElement>(null);
   const lastTypingSent = useRef(0);
   chatRef.current = chat;
+  // Ended chats leave the screen (and the list) at once
+  const closedRef = useRef(false);
+  // In a ref: a new onClosed from the parent mustn't reload the chat
+  const onClosedRef = useRef(onClosed);
+  onClosedRef.current = onClosed;
+  const close = useCallback(
+    (reason: string, byMe: boolean) => {
+      forgetChat(userId, chatId);
+      if (closedRef.current) return;
+      closedRef.current = true;
+      onClosedRef.current(endedText(reason, chatRef.current?.with?.username ?? "Your contact", byMe));
+    },
+    [userId, chatId],
+  );
 
   const fail = useCallback(
     (err: unknown) => {
       if (onAuthError(err)) return;
-      if (err instanceof ApiError && err.status === 404) {
-        forgetChat(userId, chatId);
-        setEnded((e) => e ?? { reason: "closed", byMe: false });
-        return;
-      }
+      if (err instanceof ApiError && err.status === 404) return close("closed", false);
       setError(err instanceof Error ? err.message : "Something went wrong");
     },
-    [onAuthError, userId, chatId],
+    [onAuthError, close],
   );
 
   /** Turns wire messages into what's shown, decrypting with the keys this device has. */
@@ -135,9 +154,8 @@ export function ChatPage({ chatId, userId, onBack, onSafety, onAuthError }: Prop
       live.on<{ chatId: string }>("typing", ({ chatId: id }) => id === chatId && setTypingUntil(Date.now() + TYPING_SHOWN_MS)),
       live.on<{ chatId: string; reason: string; by: string | null }>("chat:ended", ({ chatId: id, reason, by }) => {
         if (id !== chatId) return;
-        forgetChat(userId, chatId);
         setMessages([]);
-        setEnded({ reason, byMe: by === userId });
+        close(reason, by === userId);
       }),
       live.on<{ chatId: string }>("chat:keys", ({ chatId: id }) => id === chatId && void load()),
       live.on("chats:changed", () => void load()),
@@ -148,7 +166,7 @@ export function ChatPage({ chatId, userId, onBack, onSafety, onAuthError }: Prop
       offs.forEach((off) => off());
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [chatId, userId, open, receipts, load]);
+  }, [chatId, userId, open, receipts, load, close]);
 
   // Countdowns, typing indicator expiry, and messages disappearing on time
   useEffect(() => {
@@ -215,9 +233,8 @@ export function ChatPage({ chatId, userId, onBack, onSafety, onAuthError }: Prop
         await load();
       } else {
         await api(kind === "end" ? `/api/chats/${chatId}` : `/api/chats/${chatId}/decline`, { method: kind === "end" ? "DELETE" : "POST" });
-        forgetChat(userId, chatId);
-        setEnded({ reason: kind === "end" ? "ended_by_user" : chat.createdByMe ? "cancelled" : "declined", byMe: true });
         setConfirmEnd(false);
+        close(kind === "end" ? "ended_by_user" : chat.createdByMe ? "cancelled" : "declined", true);
       }
     } catch (err) {
       fail(err);
@@ -248,7 +265,7 @@ export function ChatPage({ chatId, userId, onBack, onSafety, onAuthError }: Prop
             </div>
           ) : null}
         </div>
-        {chat?.status === "active" && !ended ? (
+        {chat?.status === "active" ? (
           <>
             <button type="button" onClick={() => onSafety(chat)} aria-label="Safety code" className="grid size-11 shrink-0 place-items-center rounded-field border border-line bg-panel text-ink">
               <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -268,27 +285,19 @@ export function ChatPage({ chatId, userId, onBack, onSafety, onAuthError }: Prop
         ) : null}
       </header>
 
-      {chat?.status === "active" && !ended ? (
+      {chat?.status === "active" ? (
         <p className="m-0 flex items-center gap-2.5 border-b border-line bg-panel px-[18px] py-2 font-mono text-[11px] text-dim">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`shrink-0 ${chat.mode === "auto" ? "text-auto" : "text-keep"}`} aria-hidden="true">
             <circle cx="12" cy="12" r="9" />
             <path d="M12 7v5l3 2" />
           </svg>
           <span>
-            End-to-end encrypted · each message is deleted {chat.retentionDays} day{chat.retentionDays > 1 ? "s" : ""} after it's sent
+            End-to-end encrypted · each message is deleted {longDuration(chat.retentionMinutes)} after it's sent
           </span>
         </p>
       ) : null}
 
-      {ended ? (
-        <div className="flex grow flex-col items-center justify-center gap-4 px-7 text-center">
-          <p className="m-0 text-lg font-extrabold">Chat closed</p>
-          <p className="m-0 max-w-[36ch] text-[14px] leading-relaxed text-dim">{endedText(ended.reason, peerName, ended.byMe)}</p>
-          <button type="button" onClick={onBack} className="min-h-12 rounded-control border border-line-strong bg-panel px-5 text-[14.5px] font-semibold text-ink">
-            Back to contacts
-          </button>
-        </div>
-      ) : !chat ? (
+      {!chat ? (
         <div className="grow p-6">{error ? <Notice tone="error">{error}</Notice> : <p className="text-sm text-dim">Loading…</p>}</div>
       ) : chat.status === "invited" ? (
         <div className="flex grow flex-col items-center justify-center gap-4 px-7 text-center">
@@ -296,7 +305,7 @@ export function ChatPage({ chatId, userId, onBack, onSafety, onAuthError }: Prop
           <h2 className="m-0 text-[22px] font-extrabold">{chat.createdByMe ? `Waiting for ${peerName}` : `${peerName} wants to chat`}</h2>
           <p className="m-0 max-w-[36ch] text-[14px] leading-relaxed text-dim">
             {chat.createdByMe ? "You invited them to " : "They invite you to "}
-            {chat.mode === "auto" ? "an Automatic" : "a Keep-alive"} chat: each message is deleted {chat.retentionDays} day{chat.retentionDays > 1 ? "s" : ""} after it's sent. This can't be
+            {chat.mode === "auto" ? "an Automatic" : "a Keep-alive"} chat: each message is deleted {longDuration(chat.retentionMinutes)} after it's sent. This can't be
             changed later.
             {chat.createdByMe ? " You can write once they accept." : ""}
           </p>

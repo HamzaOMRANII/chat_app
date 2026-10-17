@@ -20,7 +20,9 @@ import { ResetPage } from "../pages/ResetPage";
 import { SecurityLogPage } from "../pages/SecurityLogPage";
 import { SettingsPage } from "../pages/SettingsPage";
 import { SignUpPage } from "../pages/SignUpPage";
-import { personalIdFromScan } from "../lib/contacts";
+import { personalIdFromScan, type Contact } from "../lib/contacts";
+import { Banners, type Banner } from "../components/Banners";
+import { onNotificationTap, openFromUrl, registerServiceWorker, showOnPhone, syncNotifications, type Note } from "../lib/notifications";
 import type { Closed, LastLogin, Screen, User } from "./types";
 
 const CLOSED_CODES = new Set(["session_revoked", "session_closed", "account_unavailable"]);
@@ -50,14 +52,47 @@ function keepPendingAdd() {
 }
 keepPendingAdd();
 
+// A browser notification opened a new tab on /#chat=… or /#contact=…: go there once signed in.
+let pendingOpen: Note["open"] = openFromUrl(location.hash);
+if (pendingOpen.chatId || pendingOpen.userId) history.replaceState(null, "", location.pathname + location.search);
+void registerServiceWorker();
+
+/** Is the app on screen (not a hidden tab, not an app in the background)? */
+const onScreenNow = () => (typeof document === "undefined" ? true : document.visibilityState === "visible");
+
 const SIGNED_IN_SCREENS = new Set<Screen["name"]>(["home", "myId", "add", "contact", "settings", "security", "chat", "safety"]);
 
 export function App() {
   const [screen, setScreen] = useState<Screen>({ name: "loading" });
+  const screenRef = useRef(screen);
+  screenRef.current = screen;
   const [user, setUser] = useState<User | null>(null);
   const [lastLogin, setLastLogin] = useState<LastLogin>(null);
   // Bumped on "contacts:changed" so open contact screens reload
   const [contactsVersion, setContactsVersion] = useState(0);
+  const [banners, setBanners] = useState<Banner[]>([]);
+  const bannerId = useRef(0);
+  const visible = useRef(onScreenNow());
+
+  /** One banner per tag: a new one replaces the previous (e.g. several messages in the same chat). */
+  const showBanner = useCallback((banner: Omit<Banner, "id">) => {
+    const id = ++bannerId.current;
+    setBanners((list) => [...list.filter((b) => b.tag !== banner.tag), { ...banner, id }].slice(-3));
+  }, []);
+  const dismissBanner = useCallback((id: number) => setBanners((list) => list.filter((b) => b.id !== id)), []);
+  // Chats just closed on screen: their own banner says why, the server's "chat ended" notification adds nothing
+  const closedHere = useRef(new Map<string, number>());
+
+  /** Where a notification leads: the chat, the contact, or the contacts list. */
+  const openTarget = useCallback((open: Note["open"]) => {
+    if (open.chatId) return setScreen({ name: "chat", chatId: open.chatId });
+    if (open.userId) {
+      return void api<{ contact: Contact }>(`/api/contacts/${open.userId}`)
+        .then(({ contact }) => setScreen({ name: "contact", contact }))
+        .catch(() => setScreen({ name: "home" }));
+    }
+    setScreen({ name: "home" });
+  }, []);
 
   const showClosed = useCallback((closed: Closed) => {
     tokenStore.clear();
@@ -76,13 +111,20 @@ export function App() {
     [showClosed],
   );
 
-  const enter = useCallback((u: User, last: LastLogin = null) => {
-    setUser(u);
-    setLastLogin(last);
-    if (u.mustReset) return setScreen({ name: "reset" });
-    const pendingAdd = takePendingAdd();
-    setScreen(pendingAdd ? { name: "add", initialId: pendingAdd } : { name: "home" });
-  }, []);
+  const enter = useCallback(
+    (u: User, last: LastLogin = null) => {
+      setUser(u);
+      setLastLogin(last);
+      if (u.mustReset) return setScreen({ name: "reset" });
+      const pendingAdd = takePendingAdd();
+      if (pendingAdd) return setScreen({ name: "add", initialId: pendingAdd });
+      const open = pendingOpen;
+      pendingOpen = {};
+      if (open.chatId || open.userId) return openTarget(open);
+      setScreen({ name: "home" });
+    },
+    [openTarget],
+  );
 
   // Restore an existing session on start
   useEffect(() => {
@@ -101,8 +143,45 @@ export function App() {
     const socket = io(SERVER_ORIGIN || undefined, {
       path: "/socket.io",
       withCredentials: !isNativeApp,
-      auth: isNativeApp ? { token: tokenStore.get() } : {},
+      // Re-read on every reconnect: the server sends a Web Push only when the app isn't on screen
+      auth: (cb: (data: Record<string, unknown>) => void) => cb({ ...(isNativeApp ? { token: tokenStore.get() } : {}), visible: visible.current }),
       transports: ["websocket"],
+    });
+    const setVisible = (on: boolean) => {
+      visible.current = on;
+      socket.emit("visibility", { visible: on });
+    };
+    const onVisibility = () => setVisible(onScreenNow());
+    document.addEventListener("visibilitychange", onVisibility);
+    let removeAppState = () => {};
+    if (isNativeApp) {
+      void import("@capacitor/app").then(({ App: NativeApp }) =>
+        NativeApp.addListener("appStateChange", ({ isActive }) => setVisible(isActive)).then((handle) => (removeAppState = () => void handle.remove())),
+      );
+    }
+
+    // Every event: a banner when the app is on screen, a phone notification when the Android app is in the background
+    // (browsers in the background get the server's Web Push instead).
+    socket.on("notify", (note: Note) => {
+      if (!visible.current) {
+        if (note.system) void showOnPhone(note).catch(() => {});
+        return;
+      }
+      const current = screenRef.current;
+      const here = current.name === "chat" && note.tag === `chat:${current.chatId}`;
+      // The open chat shows its own messages; an accepted chat opens by itself
+      if ((note.kind === "message" && here) || note.kind === "chat_accepted") return;
+      if ((note.kind === "chat_ended" || note.kind === "chat_declined") && Date.now() - (closedHere.current.get(note.tag) ?? 0) < 15_000) return;
+      showBanner({ tag: note.tag, title: note.title, body: note.body, who: note.title, onOpen: () => openTarget(note.open) });
+    });
+    // They accepted my invitation: open the chat, unless I'm writing in another one
+    socket.on("chat:accepted", ({ chatId }: { chatId: string }) => {
+      const current = screenRef.current;
+      if (current.name === "chat" && current.chatId !== chatId) {
+        showBanner({ tag: `chat:${chatId}`, title: "Chat accepted", body: "Tap to open it.", onOpen: () => openTarget({ chatId }) });
+      } else if (current.name !== "safety") {
+        setScreen({ name: "chat", chatId });
+      }
     });
     socket.on("session:revoked", (event: { reason: string; by?: Closed["by"] }) => {
       showClosed({
@@ -128,14 +207,21 @@ export function App() {
     });
     return () => {
       live.attach(null);
+      document.removeEventListener("visibilitychange", onVisibility);
+      removeAppState();
       socket.close();
     };
-  }, [signedIn, showClosed]);
+  }, [signedIn, showClosed, showBanner, openTarget]);
+
+  // Taps on browser or phone notifications
+  useEffect(() => onNotificationTap(openTarget), [openTarget]);
 
   // Once per sign-in: this device's encryption identity, and its keys for every open chat
   const userId = user?.id;
   useEffect(() => {
-    if (signedIn && userId) void prepareDevice(userId).catch(() => {});
+    if (!signedIn || !userId) return;
+    void prepareDevice(userId).catch(() => {});
+    void syncNotifications();
   }, [signedIn, userId]);
 
   async function signOut() {
@@ -149,8 +235,6 @@ export function App() {
   const home = useCallback(() => setScreen({ name: "home" }), []);
 
   // Android back button: go up one screen; on a top screen, leave the app as usual.
-  const screenRef = useRef(screen);
-  screenRef.current = screen;
   useEffect(() => {
     if (!isNativeApp) return;
     let remove = () => {};
@@ -164,93 +248,116 @@ export function App() {
     return () => remove();
   }, []);
 
-  switch (screen.name) {
-    case "loading":
-      return <main className="bg-grid min-h-dvh" aria-busy="true" />;
-    case "login":
-      return (
-        <LoginPage
-          notice={screen.notice}
-          onChallenge={(challenge) => setScreen({ name: "code", challenge })}
-          onPending={(username) => setScreen({ name: "pending", username })}
-          onSignUp={() => setScreen({ name: "signup" })}
-          onAdminReset={() => setScreen({ name: "adminReset" })}
-        />
-      );
-    case "signup":
-      return <SignUpPage onDone={(username) => setScreen({ name: "pending", username })} onBack={() => toLogin()} />;
-    case "pending":
-      return <PendingPage username={screen.username} onBack={() => toLogin()} />;
-    case "code":
-      return (
-        <CodePage
-          challenge={screen.challenge}
-          onSignedIn={enter}
-          onUsePasscode={() => setScreen({ name: "passcode", challenge: screen.challenge })}
-          onRestart={toLogin}
-        />
-      );
-    case "passcode":
-      return (
-        <PasscodePage
-          challenge={screen.challenge}
-          onSignedIn={(u) => enter(u)}
-          onBack={() => setScreen({ name: "code", challenge: screen.challenge })}
-          onRestart={toLogin}
-        />
-      );
-    case "adminReset":
-      return <AdminResetPage onSignedIn={(u) => enter(u)} onBack={() => toLogin()} />;
-    case "reset":
-      return user ? <ResetPage user={user} onDone={(u) => enter(u)} onSignOut={signOut} /> : null;
-    case "home":
-      return (
-        <ContactsPage
-          lastLogin={lastLogin}
-          version={contactsVersion}
-          onMyId={() => setScreen({ name: "myId" })}
-          onAdd={() => setScreen({ name: "add" })}
-          onOpen={(contact) => setScreen({ name: "contact", contact })}
-          onOpenChat={(chatId) => setScreen({ name: "chat", chatId })}
-          onSettings={() => setScreen({ name: "settings" })}
-          onGetApp={() => setScreen({ name: "settings", focus: "app" })}
-          onAuthError={handleAuthError}
-        />
-      );
-    case "myId":
-      return <MyIdPage onBack={home} onAuthError={handleAuthError} />;
-    case "add":
-      return <AddContactPage initialId={screen.initialId} onBack={home} onAdded={(contact) => setScreen({ name: "contact", contact })} onAuthError={handleAuthError} />;
-    case "contact":
-      return user ? (
-        <ContactPage
-          contact={screen.contact}
-          userId={user.id}
-          version={contactsVersion}
-          onBack={home}
-          onChat={(chatId) => setScreen({ name: "chat", chatId })}
-          onAuthError={handleAuthError}
-        />
-      ) : null;
-    case "chat":
-      return user ? (
-        <ChatPage
-          key={screen.chatId}
-          chatId={screen.chatId}
-          userId={user.id}
-          onBack={home}
-          onSafety={(chat) => setScreen({ name: "safety", chat })}
-          onAuthError={handleAuthError}
-        />
-      ) : null;
-    case "safety":
-      return user ? <SafetyPage chat={screen.chat} userId={user.id} onBack={() => setScreen({ name: "chat", chatId: screen.chat.id })} /> : null;
-    case "settings":
-      return user ? <SettingsPage user={user} focusApp={screen.focus === "app"} onBack={home} onSecurityLog={() => setScreen({ name: "security" })} onSignOut={signOut} /> : null;
-    case "security":
-      return <SecurityLogPage onBack={() => setScreen({ name: "settings" })} onAuthError={handleAuthError} />;
-    case "closed":
-      return <ClosedPage closed={screen.closed} onSignIn={() => toLogin()} />;
+  return (
+    <>
+      {page()}
+      <Banners banners={banners} onDismiss={dismissBanner} />
+    </>
+  );
+
+  function page() {
+    switch (screen.name) {
+      case "loading":
+        return <main className="bg-grid min-h-dvh" aria-busy="true" />;
+      case "login":
+        return (
+          <LoginPage
+            notice={screen.notice}
+            onChallenge={(challenge) => setScreen({ name: "code", challenge })}
+            onPending={(username) => setScreen({ name: "pending", username })}
+            onSignUp={() => setScreen({ name: "signup" })}
+            onAdminReset={() => setScreen({ name: "adminReset" })}
+          />
+        );
+      case "signup":
+        return <SignUpPage onDone={(username) => setScreen({ name: "pending", username })} onBack={() => toLogin()} />;
+      case "pending":
+        return <PendingPage username={screen.username} onBack={() => toLogin()} />;
+      case "code":
+        return (
+          <CodePage
+            challenge={screen.challenge}
+            onSignedIn={enter}
+            onUsePasscode={() => setScreen({ name: "passcode", challenge: screen.challenge })}
+            onRestart={toLogin}
+          />
+        );
+      case "passcode":
+        return (
+          <PasscodePage
+            challenge={screen.challenge}
+            onSignedIn={(u) => enter(u)}
+            onBack={() => setScreen({ name: "code", challenge: screen.challenge })}
+            onRestart={toLogin}
+          />
+        );
+      case "adminReset":
+        return <AdminResetPage onSignedIn={(u) => enter(u)} onBack={() => toLogin()} />;
+      case "reset":
+        return user ? <ResetPage user={user} onDone={(u) => enter(u)} onSignOut={signOut} /> : null;
+      case "home":
+        return (
+          <ContactsPage
+            lastLogin={lastLogin}
+            version={contactsVersion}
+            onMyId={() => setScreen({ name: "myId" })}
+            onAdd={() => setScreen({ name: "add" })}
+            onOpen={(contact) => setScreen({ name: "contact", contact })}
+            onOpenChat={(chatId) => setScreen({ name: "chat", chatId })}
+            onSettings={() => setScreen({ name: "settings" })}
+            onGetApp={() => setScreen({ name: "settings", focus: "app" })}
+            onAuthError={handleAuthError}
+          />
+        );
+      case "myId":
+        return <MyIdPage onBack={home} onAuthError={handleAuthError} />;
+      case "add":
+        return (
+          <AddContactPage
+            initialId={screen.initialId}
+            onBack={home}
+            onAdded={(contact) => setScreen({ name: "contact", contact })}
+            onAuthError={handleAuthError}
+          />
+        );
+      case "contact":
+        return user ? (
+          <ContactPage
+            contact={screen.contact}
+            userId={user.id}
+            version={contactsVersion}
+            onBack={home}
+            onChat={(chatId) => setScreen({ name: "chat", chatId })}
+            onAuthError={handleAuthError}
+          />
+        ) : null;
+      case "chat":
+        return user ? (
+          <ChatPage
+            key={screen.chatId}
+            chatId={screen.chatId}
+            userId={user.id}
+            onBack={home}
+            onClosed={(text) => {
+              closedHere.current.set(`chat:${screen.chatId}`, Date.now());
+              home();
+              showBanner({ tag: `chat:${screen.chatId}`, title: "Chat closed", body: text });
+            }}
+            onSafety={(chat) => setScreen({ name: "safety", chat })}
+            onAuthError={handleAuthError}
+          />
+        ) : null;
+      case "safety":
+        return user ? <SafetyPage chat={screen.chat} userId={user.id} onBack={() => setScreen({ name: "chat", chatId: screen.chat.id })} /> : null;
+      case "settings":
+        return user ? (
+          <SettingsPage user={user} focusApp={screen.focus === "app"} onBack={home} onSecurityLog={() => setScreen({ name: "security" })} onSignOut={signOut} />
+        ) : null;
+      case "security":
+        return <SecurityLogPage onBack={() => setScreen({ name: "settings" })} onAuthError={handleAuthError} />;
+      case "closed":
+        return <ClosedPage closed={screen.closed} onSignIn={() => toLogin()} />;
+    }
   }
 }
 

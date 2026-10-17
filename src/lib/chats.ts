@@ -7,7 +7,8 @@ export type Chat = {
   id: string;
   with: { id: string; username: string; online: boolean; lastSeenAt: string | null; identityPub: string | null } | null;
   mode: ChatMode;
-  retentionDays: number;
+  /** How long each message stays after it's sent. */
+  retentionMinutes: number;
   status: "invited" | "active";
   createdByMe: boolean;
   invitedAt: string;
@@ -31,7 +32,17 @@ export type WireMessage = {
   expiresAt: string;
 };
 
-export const modeLabel = (c: { mode: ChatMode; retentionDays: number }) => `${c.mode === "auto" ? "AUTO" : "KEEP"} · ${c.retentionDays}D`;
+/** The durations offered for Keep-alive (the category's maximum cuts the list); Automatic is always 7 days. */
+export const RETENTION_MINUTES = [30, 60, 180, 360, 720, 1440, 2880, 4320, 5760, 7200, 8640, 10080];
+export const AUTO_MINUTES = 10080;
+
+/** "30M", "6H", "2D" */
+export const shortDuration = (minutes: number) => (minutes < 60 ? `${minutes}M` : minutes < 1440 ? `${minutes / 60}H` : `${minutes / 1440}D`);
+/** "30 minutes", "1 hour", "2 days" */
+export const longDuration = (minutes: number) =>
+  minutes < 60 ? `${minutes} minutes` : minutes < 1440 ? `${minutes / 60} hour${minutes > 60 ? "s" : ""}` : `${minutes / 1440} day${minutes > 1440 ? "s" : ""}`;
+
+export const modeLabel = (c: { mode: ChatMode; retentionMinutes: number }) => `${c.mode === "auto" ? "AUTO" : "KEEP"} · ${shortDuration(c.retentionMinutes)}`;
 
 export const latestKey = (chat: Chat, userId: string) =>
   chat.keys.filter((k) => k.userId === userId).sort((a, b) => b.version - a.version)[0] ?? null;

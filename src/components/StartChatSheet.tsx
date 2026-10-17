@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { Notice } from "./Screen";
 import { api } from "../lib/api";
-import { keepChatKey, makeChatKey, type Chat, type ChatMode, type ChatOptions } from "../lib/chats";
+import { AUTO_MINUTES, keepChatKey, longDuration, makeChatKey, RETENTION_MINUTES, shortDuration, type Chat, type ChatMode, type ChatOptions } from "../lib/chats";
+
+/** A day by default (or the longest allowed, if shorter). */
+const DEFAULT_MINUTES = 1440;
 
 type Props = { userId: string; peer: { id: string; username: string }; onStarted: (chat: Chat) => void; onClose: () => void; onAuthError: (err: unknown) => boolean };
 
@@ -9,7 +12,7 @@ type Props = { userId: string; peer: { id: string; username: string }; onStarted
 export function StartChatSheet({ userId, peer, onStarted, onClose, onAuthError }: Props) {
   const [options, setOptions] = useState<ChatOptions | null>(null);
   const [mode, setMode] = useState<ChatMode>("keep");
-  const [days, setDays] = useState(3);
+  const [minutes, setMinutes] = useState(DEFAULT_MINUTES);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -18,7 +21,7 @@ export function StartChatSheet({ userId, peer, onStarted, onClose, onAuthError }
       .then(({ options: o }) => {
         setOptions(o);
         setMode(o.keepMaxDays ? "keep" : "auto");
-        setDays((d) => Math.min(Math.max(1, d), Math.max(1, o.keepMaxDays)));
+        setMinutes((m) => Math.min(m, Math.max(RETENTION_MINUTES[0]!, o.keepMaxDays * 1440)));
       })
       .catch((err) => {
         if (!onAuthError(err)) setError(err instanceof Error ? err.message : "Couldn't load the options");
@@ -26,14 +29,17 @@ export function StartChatSheet({ userId, peer, onStarted, onClose, onAuthError }
   }, [peer.id, onAuthError]);
 
   const stored = options && (options.keepMaxDays > 0 || options.auto);
+  // The steps this contact's rules allow: 30 min, 1 h, 3 h, 6 h, 12 h, then days up to the maximum
+  const steps = RETENTION_MINUTES.filter((m) => m <= (options?.keepMaxDays ?? 0) * 1440);
+  const step = Math.max(0, steps.indexOf(minutes));
 
   async function start() {
     setBusy(true);
     setError("");
     try {
       const key = await makeChatKey(userId, peer.id);
-      const retentionDays = mode === "auto" ? 7 : days;
-      const { chat } = await api<{ chat: Chat }>("/api/chats", { body: { userId: peer.id, mode, retentionDays, key: { pub: key.pub, sig: key.sig } } });
+      const retentionMinutes = mode === "auto" ? AUTO_MINUTES : minutes;
+      const { chat } = await api<{ chat: Chat }>("/api/chats", { body: { userId: peer.id, mode, retentionMinutes, key: { pub: key.pub, sig: key.sig } } });
       keepChatKey(userId, chat.id, 1, key.secret);
       onStarted(chat);
     } catch (err) {
@@ -66,28 +72,30 @@ export function StartChatSheet({ userId, peer, onStarted, onClose, onAuthError }
             <span className="flex items-center gap-2.5">
               <input type="radio" name="mode" checked={mode === "keep"} onChange={() => setMode("keep")} className="size-5 accent-[#C99A3E]" />
               <span className="grow text-[15.5px] font-extrabold">Keep-alive</span>
-              <span className="rounded-full border border-keep-line px-2 py-px font-mono text-[10.5px] font-bold text-keep">KEEP · {days}D</span>
+              <span className="rounded-full border border-keep-line px-2 py-px font-mono text-[10.5px] font-bold text-keep">KEEP · {shortDuration(minutes)}</span>
             </span>
             <span className="text-[12.5px] text-ink-soft">
-              Each message is deleted <strong>{days} day{days > 1 ? "s" : ""}</strong> after it's sent.
+              Each message is deleted <strong>{longDuration(minutes)}</strong> after it's sent.
             </span>
-            {options.keepMaxDays > 1 ? (
+            {steps.length > 1 ? (
               <span className="flex flex-col gap-1.5">
                 <input
                   type="range"
-                  min={1}
-                  max={options.keepMaxDays}
-                  value={days}
+                  min={0}
+                  max={steps.length - 1}
+                  step={1}
+                  value={step}
                   onChange={(e) => {
                     setMode("keep");
-                    setDays(Number(e.target.value));
+                    setMinutes(steps[Number(e.target.value)]!);
                   }}
-                  aria-label="Days"
+                  aria-label="How long messages stay"
+                  aria-valuetext={longDuration(minutes)}
                   className="w-full accent-[#C99A3E]"
                 />
                 <span className="flex justify-between font-mono text-[10.5px] text-faint">
-                  <span>1 day</span>
-                  <span>{options.keepMaxDays} days</span>
+                  <span>{longDuration(steps[0]!)}</span>
+                  <span>{longDuration(steps.at(-1)!)}</span>
                 </span>
               </span>
             ) : null}
