@@ -1,6 +1,6 @@
 {
   "name": "h-chat-app",
-  "version": "0.9.2",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -25,7 +25,7 @@
     "@capacitor/share": "^8.0.3",
     "@fontsource/archivo": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
-    "fflate": "^0.8.2",
+    "fflate": "^0.8.3",
     "jsqr": "^1.4.0",
     "libsodium-wrappers": "^0.7.15",
     "qrcode": "^1.5.4",
