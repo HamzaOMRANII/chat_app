@@ -31,9 +31,11 @@ export function bytes(n: number) {
 }
 
 /** Encrypts a file here, piece by piece, and uploads it. The key never leaves the message. */
-export async function uploadFile(chatId: string, file: File, onProgress: (done: number) => void, signal: AbortSignal): Promise<FileRef> {
+/** `place`: a chat id, or { groupId } for a group. */
+export async function uploadFile(place: string | { groupId: string }, file: File, onProgress: (done: number) => void, signal: AbortSignal): Promise<FileRef> {
   const mime = file.type || "application/octet-stream";
-  const { file: started } = await api<{ file: { id: string; chunks: number } }>(`/api/chats/${chatId}/files`, { body: { kind: kindOf(mime, file.name), size: file.size } });
+  const base = typeof place === "string" ? `/api/chats/${place}` : `/api/groups/${place.groupId}`;
+  const { file: started } = await api<{ file: { id: string; chunks: number } }>(`${base}/files`, { body: { kind: kindOf(mime, file.name), size: file.size } });
   const key = await newFileKey();
   for (let n = 0; n < started.chunks; n++) {
     if (signal.aborted) throw new DOMException("Cancelled", "AbortError");

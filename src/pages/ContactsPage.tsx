@@ -8,6 +8,9 @@ import { modeLabel, type Chat } from "../lib/chats";
 import { isNativeApp } from "../lib/platform";
 import { clock, countdown, type LiveSession } from "../lib/liveChat";
 import { bytes, type MediaSummary } from "../lib/files";
+import type { Group, GroupRequest } from "../lib/groups";
+import { GroupAvatar } from "./GroupPage";
+import { NewGroupSheet } from "../components/NewGroupSheet";
 import { ago, lastSeen, type Contact, type ContactList } from "../lib/contacts";
 import { place, when, type LastLogin } from "../app/types";
 
@@ -21,6 +24,7 @@ type Props = {
   onOpenChat: (chatId: string) => void;
   onOpenLive: (sessionId: string) => void;
   onOpenMedia: () => void;
+  onOpenGroup: (groupId: string) => void;
   onSettings: () => void;
   /** Web only: Settings, where the Android app download is. */
   onGetApp: () => void;
@@ -39,6 +43,7 @@ export function ContactsPage({
   onOpenChat,
   onOpenLive,
   onOpenMedia,
+  onOpenGroup,
   onSettings,
   onGetApp,
   onAuthError,
@@ -47,6 +52,8 @@ export function ContactsPage({
   const [chats, setChats] = useState<Chat[]>([]);
   const [liveChats, setLiveChats] = useState<LiveSession[]>([]);
   const [media, setMedia] = useState<MediaSummary | null>(null);
+  const [groups, setGroups] = useState<{ groups: Group[]; requests: GroupRequest[] }>({ groups: [], requests: [] });
+  const [askingGroup, setAskingGroup] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -58,6 +65,9 @@ export function ContactsPage({
       setList(contacts);
       setChats(open.chats);
       setLiveChats(running.live);
+      void api<{ groups: Group[]; requests: GroupRequest[] }>("/api/groups")
+        .then(setGroups)
+        .catch(() => {});
       void api<MediaSummary>("/api/media")
         .then(setMedia)
         .catch(() => {});
@@ -358,14 +368,67 @@ export function ContactsPage({
           </section>
         ) : null}
 
+        {groups.groups.length || groups.requests.length ? (
+          <section aria-labelledby="groups" className="flex flex-col gap-1.5">
+            <h2 id="groups" className="eyebrow m-0 text-[11px] font-normal">
+              groups · {groups.groups.length}
+            </h2>
+            <ul className="-mx-2 m-0 flex list-none flex-col p-0">
+              {groups.groups.map((g) => {
+                const online = g.members.filter((m) => m.online).length;
+                return (
+                  <li key={g.id}>
+                    <button type="button" onClick={() => onOpenGroup(g.id)} className="flex w-full items-center gap-3.5 rounded-[14px] bg-transparent px-2 py-[11px] text-left text-ink hover:bg-panel">
+                      <GroupAvatar />
+                      <span className="flex min-w-0 grow flex-col gap-[3px]">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-[15.5px] font-bold">{g.name}</span>
+                          {g.unread ? <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-accent px-1.5 font-mono text-[11px] font-bold text-bg">{g.unread}</span> : null}
+                        </span>
+                        <span className={`truncate text-[13px] ${g.unread ? "font-semibold text-ink-soft" : "text-faint"}`}>
+                          {g.unread ? `${g.unread} new message${g.unread > 1 ? "s" : ""}` : `${g.members.length} members${online > 1 ? ` · ${online - 1} online` : ""}`}
+                        </span>
+                      </span>
+                      <span className={`shrink-0 rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${g.mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep"}`}>{modeLabel(g)}</span>
+                    </button>
+                  </li>
+                );
+              })}
+              {groups.requests.map((r) => (
+                <li key={r.id} className="flex items-center gap-3.5 px-2 py-[11px] opacity-80">
+                  <GroupAvatar />
+                  <span className="flex min-w-0 grow flex-col gap-[3px]">
+                    <span className="truncate text-[15.5px] font-bold">{r.name}</span>
+                    <span className={`truncate text-[13px] ${r.status === "refused" ? "text-danger-ink" : "text-keep"}`}>
+                      {r.status === "refused" ? "not approved by the administrator" : "waiting for the administrator's approval"}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void api(`/api/groups/requests/${r.id}`, { method: "DELETE" }).then(load)}
+                    className="min-h-9 shrink-0 rounded-[10px] border border-line-strong bg-transparent px-2.5 text-[12.5px] font-semibold text-ink-soft"
+                  >
+                    {r.status === "refused" ? "Remove" : "Cancel"}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+
         <section
           aria-labelledby="contacts"
           className="flex grow flex-col gap-1.5"
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <h2 id="contacts" className="eyebrow m-0 text-[11px] font-normal">
               contacts · {list?.contacts.length ?? 0}
             </h2>
+            {list?.contacts.length ? (
+              <button type="button" onClick={() => setAskingGroup(true)} className="ml-auto bg-transparent p-0 font-mono text-[11px] font-bold text-link">
+                + ask for a group
+              </button>
+            ) : null}
             {online ? (
               <span className="font-mono text-[11px] text-online">
                 {online} online
@@ -464,6 +527,17 @@ export function ContactsPage({
           Add contact
         </button>
       </div>
+      {askingGroup && list ? (
+        <NewGroupSheet
+          contacts={list.contacts}
+          onAsked={() => {
+            setAskingGroup(false);
+            void load();
+          }}
+          onClose={() => setAskingGroup(false)}
+          onAuthError={onAuthError}
+        />
+      ) : null}
     </main>
   );
 }

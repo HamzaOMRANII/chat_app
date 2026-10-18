@@ -13,7 +13,7 @@ globalThis.localStorage = {
     return memory.size;
   },
 } as Storage;
-import { decryptMessage, encryptMessage, forgetChat, newFileKey, openLive, openPiece, sealLive, sealPiece, identity, keepChatKey, newChatKey, safetyCode, verifyKey, type PublishedKey } from "./e2e";
+import { decryptGroupMessage, encryptGroupMessage, keepGroupKey, decryptMessage, encryptMessage, forgetChat, newFileKey, openLive, openPiece, sealLive, sealPiece, identity, keepChatKey, newChatKey, safetyCode, verifyKey, type PublishedKey } from "./e2e";
 
 beforeEach(() => localStorage.clear());
 
@@ -104,5 +104,30 @@ describe("files", () => {
     await expect(openPiece(key, "file2", 0, 2, sealed)).rejects.toThrow(); // other file
     await expect(openPiece(key, "file1", 0, 1, sealed)).rejects.toThrow(); // file cut short
     await expect(openPiece(await newFileKey(), "file1", 0, 2, sealed)).rejects.toThrow();
+  });
+});
+
+describe("groups", () => {
+  it("each member opens the message with their own key; someone not included can't", async () => {
+    const people = ["A", "B", "C"];
+    const keys: Record<string, PublishedKey> = {};
+    for (const p of people) {
+      const id = await identity(p, `device-${p}`);
+      const k = await newChatKey(id, p, "group1");
+      keepGroupKey(p, "group1", 1, k.secret);
+      keys[p] = { userId: p, version: 1, pub: k.pub, sig: k.sig, identityPub: id.signPub };
+    }
+    // C was removed: only A and B are included
+    const sent = await encryptGroupMessage({ userId: "A", groupId: "group1", myKey: keys.A!, recipients: [keys.A!, keys.B!], plain: { t: "site at 2" } });
+    expect(sent.wraps.map((w) => w.userId)).toEqual(["A", "B"]);
+    for (const p of ["A", "B"]) {
+      const wrap = sent.wraps.find((w) => w.userId === p)!;
+      expect(await decryptGroupMessage({ userId: p, groupId: "group1", senderId: "A", senderKey: keys.A!, wrap, ciphertext: sent.ciphertext, nonce: sent.nonce })).toEqual({ t: "site at 2" });
+    }
+    // C tries with B's wrap: their key doesn't open it
+    const stolen = sent.wraps.find((w) => w.userId === "B")!;
+    expect(await decryptGroupMessage({ userId: "C", groupId: "group1", senderId: "A", senderKey: keys.A!, wrap: stolen, ciphertext: sent.ciphertext, nonce: sent.nonce })).toBeNull();
+    // Claiming another sender fails
+    expect(await decryptGroupMessage({ userId: "B", groupId: "group1", senderId: "C", senderKey: keys.C!, wrap: stolen, ciphertext: sent.ciphertext, nonce: sent.nonce })).toBeNull();
   });
 });

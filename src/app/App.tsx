@@ -9,9 +9,12 @@ import { AddContactPage } from "../pages/AddContactPage";
 import { ChatPage } from "../pages/ChatPage";
 import { LivePage } from "../pages/LivePage";
 import { MediaPage } from "../pages/MediaPage";
+import { GroupPage } from "../pages/GroupPage";
+import { GroupInfoPage } from "../pages/GroupInfoPage";
 import { CallScreen } from "../components/CallScreen";
 import { UpdatePrompt } from "../components/UpdatePrompt";
 import { attachCalls } from "../lib/calls";
+import { prepareGroups } from "../lib/groups";
 import { SafetyPage } from "../pages/SafetyPage";
 import { prepareDevice } from "../lib/chats";
 import { CHAT_EVENTS, live } from "../lib/live";
@@ -59,13 +62,13 @@ keepPendingAdd();
 
 // A browser notification opened a new tab on /#chat=… or /#contact=…: go there once signed in.
 let pendingOpen: Note["open"] = openFromUrl(location.hash);
-if (pendingOpen.chatId || pendingOpen.userId || pendingOpen.liveId || pendingOpen.media) history.replaceState(null, "", location.pathname + location.search);
+if (pendingOpen.chatId || pendingOpen.userId || pendingOpen.liveId || pendingOpen.media || pendingOpen.groupId) history.replaceState(null, "", location.pathname + location.search);
 void registerServiceWorker();
 
 /** Is the app on screen (not a hidden tab, not an app in the background)? */
 const onScreenNow = () => (typeof document === "undefined" ? true : document.visibilityState === "visible");
 
-const SIGNED_IN_SCREENS = new Set<Screen["name"]>(["home", "myId", "add", "contact", "settings", "security", "chat", "live", "media", "safety"]);
+const SIGNED_IN_SCREENS = new Set<Screen["name"]>(["home", "myId", "add", "contact", "settings", "security", "chat", "live", "media", "group", "groupInfo", "safety"]);
 
 export function App() {
   const [screen, setScreen] = useState<Screen>({ name: "loading" });
@@ -93,6 +96,7 @@ export function App() {
     if (open.chatId) return setScreen({ name: "chat", chatId: open.chatId });
     if (open.liveId) return setScreen({ name: "live", sessionId: open.liveId });
     if (open.media) return setScreen({ name: "media" });
+    if (open.groupId) return setScreen({ name: "group", groupId: open.groupId });
     if (open.userId) {
       return void api<{ contact: Contact }>(`/api/contacts/${open.userId}`)
         .then(({ contact }) => setScreen({ name: "contact", contact }))
@@ -127,7 +131,7 @@ export function App() {
       if (pendingAdd) return setScreen({ name: "add", initialId: pendingAdd });
       const open = pendingOpen;
       pendingOpen = {};
-      if (open.chatId || open.userId || open.liveId || open.media) return openTarget(open);
+      if (open.chatId || open.userId || open.liveId || open.media || open.groupId) return openTarget(open);
       setScreen({ name: "home" });
     },
     [openTarget],
@@ -197,7 +201,10 @@ export function App() {
         return;
       }
       const current = screenRef.current;
-      const here = (current.name === "chat" && note.tag === `chat:${current.chatId}`) || (current.name === "live" && note.tag === `live:${current.sessionId}`);
+      const here =
+        (current.name === "chat" && note.tag === `chat:${current.chatId}`) ||
+        (current.name === "live" && note.tag === `live:${current.sessionId}`) ||
+        (current.name === "group" && note.tag === `group:${current.groupId}`);
       // The open chat shows its own messages; an accepted chat opens by itself
       if ((note.kind === "message" && here) || note.kind === "chat_accepted" || (note.kind === "call" && note.body.startsWith("Incoming"))) return;
       // The live chat on screen says itself that it ended
@@ -237,7 +244,7 @@ export function App() {
     for (const event of CHAT_EVENTS) {
       socket.on(event, (payload: unknown) => {
         live.dispatch(event, payload);
-        if (event !== "typing" && event !== "msg:status" && event !== "live" && event !== "live:peer" && event !== "files:deleted" && event !== "exports:changed" && !event.startsWith("call:")) setContactsVersion((v) => v + 1);
+        if (event !== "typing" && event !== "msg:status" && event !== "live" && event !== "live:peer" && event !== "files:deleted" && event !== "exports:changed" && event !== "group:typing" && event !== "group:read" && !event.startsWith("call:")) setContactsVersion((v) => v + 1);
       });
     }
     live.attach(socket);
@@ -268,7 +275,9 @@ export function App() {
   const userId = user?.id;
   useEffect(() => {
     if (!signedIn || !userId) return;
-    void prepareDevice(userId).catch(() => {});
+    void prepareDevice(userId)
+      .then(() => prepareGroups(userId))
+      .catch(() => {});
     attachCalls(userId);
     void syncNotifications();
   }, [signedIn, userId]);
@@ -357,6 +366,7 @@ export function App() {
             onOpenChat={(chatId) => setScreen({ name: "chat", chatId })}
             onOpenLive={(sessionId) => setScreen({ name: "live", sessionId })}
             onOpenMedia={() => setScreen({ name: "media" })}
+            onOpenGroup={(groupId) => setScreen({ name: "group", groupId })}
             onSettings={() => setScreen({ name: "settings" })}
             onGetApp={() => setScreen({ name: "settings", focus: "app" })}
             onAuthError={handleAuthError}
@@ -382,6 +392,34 @@ export function App() {
             onBack={home}
             onChat={(chatId) => setScreen({ name: "chat", chatId })}
             onLive={(sessionId) => setScreen({ name: "live", sessionId })}
+            onAuthError={handleAuthError}
+          />
+        ) : null;
+      case "group":
+        return user ? (
+          <GroupPage
+            key={screen.groupId}
+            groupId={screen.groupId}
+            userId={user.id}
+            onBack={home}
+            onInfo={() => setScreen({ name: "groupInfo", groupId: screen.groupId })}
+            onClosed={(text) => {
+              home();
+              showBanner({ tag: `group:${screen.groupId}`, title: "Group", body: text });
+            }}
+            onAuthError={handleAuthError}
+          />
+        ) : null;
+      case "groupInfo":
+        return user ? (
+          <GroupInfoPage
+            groupId={screen.groupId}
+            userId={user.id}
+            onBack={() => setScreen({ name: "group", groupId: screen.groupId })}
+            onLeft={() => {
+              home();
+              showBanner({ tag: `group:${screen.groupId}`, title: "Group", body: "You left the group." });
+            }}
             onAuthError={handleAuthError}
           />
         ) : null;
@@ -452,6 +490,10 @@ function parentScreen(screen: Screen): Screen | null {
     case "chat":
     case "live":
       return { name: "home" };
+    case "group":
+      return { name: "home" };
+    case "groupInfo":
+      return { name: "group", groupId: screen.groupId };
     case "media":
       return screen.chatId ? { name: "chat", chatId: screen.chatId } : { name: "home" };
     case "safety":
