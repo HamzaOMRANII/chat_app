@@ -7,6 +7,8 @@ import { PageHeader } from "../components/PageHeader";
 import { isNativeApp } from "../lib/platform";
 import type { User } from "../app/types";
 
+declare const __APP_VERSION__: string;
+
 const row = "flex min-h-[54px] w-full items-center gap-3 bg-transparent px-4 text-left text-[15px] font-semibold text-ink hover:bg-raised";
 
 type Props = { user: User; focusApp?: boolean; onBack: () => void; onSecurityLog: () => void; onMedia: () => void; onSignOut: () => void };
@@ -48,6 +50,7 @@ export function SettingsPage({ user, focusApp, onBack, onSecurityLog, onMedia, o
         <button type="button" onClick={onSignOut} className="min-h-12 rounded-control border border-line-strong bg-panel text-[14.5px] font-semibold text-ink">
           Sign out
         </button>
+        <p className="m-0 text-center font-mono text-[11px] text-faint">H_CHAT {__APP_VERSION__} · end-to-end encrypted</p>
       </div>
     </main>
   );
