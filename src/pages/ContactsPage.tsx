@@ -424,11 +424,7 @@ export function ContactsPage({
             <h2 id="contacts" className="eyebrow m-0 text-[11px] font-normal">
               contacts · {list?.contacts.length ?? 0}
             </h2>
-            {list?.contacts.length ? (
-              <button type="button" onClick={() => setAskingGroup(true)} className="ml-auto bg-transparent p-0 font-mono text-[11px] font-bold text-link">
-                + ask for a group
-              </button>
-            ) : null}
+
             {online ? (
               <span className="font-mono text-[11px] text-online">
                 {online} online
@@ -506,11 +502,25 @@ export function ContactsPage({
         </section>
       </div>
 
-      <div className="sticky bottom-0 bg-bg px-5 pb-6 pt-3">
+      <div className="sticky bottom-0 flex gap-2.5 bg-bg px-5 pb-6 pt-3">
+        {list?.contacts.length ? (
+          <button
+            type="button"
+            onClick={() => setAskingGroup(true)}
+            className="flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-2xl border border-line-strong bg-panel text-[15px] font-bold text-ink hover:border-accent"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="9" cy="8" r="3.2" />
+              <path d="M3 20a6 6 0 0 1 12 0" />
+              <path d="M19 8v6M16 11h6" />
+            </svg>
+            New group
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onAdd}
-          className="flex min-h-[54px] w-full items-center justify-center gap-2.5 rounded-2xl bg-brand text-[15px] font-bold text-white shadow-[0_10px_26px_rgba(126,34,52,0.35)] hover:bg-brand-hover"
+          className="flex min-h-[54px] flex-1 items-center justify-center gap-2.5 rounded-2xl bg-brand text-[15px] font-bold text-white shadow-[0_10px_26px_rgba(126,34,52,0.35)] hover:bg-brand-hover"
         >
           <svg
             viewBox="0 0 24 24"

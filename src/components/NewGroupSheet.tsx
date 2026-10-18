@@ -32,7 +32,7 @@ export function NewGroupSheet({ contacts, onAsked, onClose, onAuthError }: Props
         <span className="h-1 w-10 self-center rounded-full bg-line-strong" aria-hidden="true" />
         <div className="flex flex-col gap-1">
           <h2 id="newgroup-title" className="m-0 text-xl font-extrabold">
-            Ask for a group
+            New group
           </h2>
           <p className="m-0 text-[13px] leading-normal text-dim">The administrator approves it and sets its rules. Up to 10 people, you included.</p>
         </div>
