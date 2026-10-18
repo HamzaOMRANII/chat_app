@@ -7,7 +7,7 @@ export type Note = {
   title: string;
   body: string;
   tag: string;
-  open: { chatId?: string; userId?: string; liveId?: string; media?: boolean };
+  open: { chatId?: string; userId?: string; liveId?: string; media?: boolean; groupId?: string };
   /** False when the person turned this kind off in Settings: in-app banner only. */
   system: boolean;
 };
@@ -196,5 +196,5 @@ export function openFromUrl(url: string): Note["open"] {
   const [kind, id] = hash.split("=");
   if (kind === "media") return { media: true };
   if (!id || !/^[a-f0-9]{24}$/.test(id)) return {};
-  return kind === "chat" ? { chatId: id } : kind === "live" ? { liveId: id } : kind === "contact" ? { userId: id } : {};
+  return kind === "chat" ? { chatId: id } : kind === "group" ? { groupId: id } : kind === "live" ? { liveId: id } : kind === "contact" ? { userId: id } : {};
 }

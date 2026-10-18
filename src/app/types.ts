@@ -32,6 +32,8 @@ export type Screen =
   | { name: "chat"; chatId: string }
   | { name: "live"; sessionId: string }
   | { name: "media"; chatId?: string }
+  | { name: "group"; groupId: string }
+  | { name: "groupInfo"; groupId: string }
   | { name: "safety"; chat: Chat }
   | { name: "security" }
   | { name: "closed"; closed: Closed };

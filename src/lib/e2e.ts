@@ -273,3 +273,60 @@ export async function verifyCall(identityPub: string, callId: string, type: stri
     return false;
   }
 }
+
+// ---------- Groups: each message locked with a random key, that key locked for each member's group key ----------
+
+const groupKeyName = (userId: string, groupId: string, version: number) => `hc.e2e.group.${userId}.${groupId}.${version}`;
+export const keepGroupKey = (userId: string, groupId: string, version: number, secret: string) => store.set(groupKeyName(userId, groupId, version), secret);
+export const groupSecret = (userId: string, groupId: string, version: number) => store.get<string>(groupKeyName(userId, groupId, version));
+/** Forgets this device's keys of groups it's no longer in. */
+export function forgetGroupsExcept(userId: string, groupIds: string[]) {
+  const keep = new Set(groupIds);
+  for (const k of store.keys(`hc.e2e.group.${userId}.`)) {
+    const groupId = k.split(".")[4];
+    if (groupId && !keep.has(groupId)) store.remove(k);
+  }
+}
+
+const groupAssociated = (groupId: string, senderId: string, senderVersion: number) => sodium.from_string(`hchat-gmsg|${groupId}|${senderId}|${senderVersion}`);
+
+/** One message for the group: ciphertext + nonce, and the message key locked ("wrapped") for each member's key. */
+export async function encryptGroupMessage(opts: { userId: string; groupId: string; myKey: PublishedKey; recipients: PublishedKey[]; plain: Plain }) {
+  await lib();
+  const secret = groupSecret(opts.userId, opts.groupId, opts.myKey.version);
+  if (!secret) throw new Error("This device has no key for this group.");
+  const msgKey = sodium.crypto_aead_xchacha20poly1305_ietf_keygen();
+  const nonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
+  const cipher = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(sodium.from_string(JSON.stringify(opts.plain)), groupAssociated(opts.groupId, opts.userId, opts.myKey.version), null, nonce, msgKey);
+  const wraps = opts.recipients.map((k) => {
+    const n = sodium.randombytes_buf(sodium.crypto_box_NONCEBYTES);
+    const boxed = sodium.crypto_box_easy(msgKey, n, dec(k.pub), dec(secret));
+    return { userId: k.userId, keyVersion: k.version, key: enc(new Uint8Array([...n, ...boxed])) };
+  });
+  return { ciphertext: enc(cipher), nonce: enc(nonce), senderKeyVersion: opts.myKey.version, wraps };
+}
+
+/** Opens a group message with my wrap; null if this device can't (or it was tampered with). */
+export async function decryptGroupMessage(opts: {
+  userId: string;
+  groupId: string;
+  senderId: string;
+  senderKey: PublishedKey;
+  wrap: { keyVersion: number; key: string };
+  ciphertext: string;
+  nonce: string;
+}): Promise<Plain | null> {
+  await lib();
+  const secret = groupSecret(opts.userId, opts.groupId, opts.wrap.keyVersion);
+  if (!secret) return null;
+  try {
+    const raw = dec(opts.wrap.key);
+    const n = raw.slice(0, sodium.crypto_box_NONCEBYTES);
+    const msgKey = sodium.crypto_box_open_easy(raw.slice(sodium.crypto_box_NONCEBYTES), n, dec(opts.senderKey.pub), dec(secret));
+    const plain = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(null, dec(opts.ciphertext), groupAssociated(opts.groupId, opts.senderId, opts.senderKey.version), dec(opts.nonce), msgKey);
+    const parsed = JSON.parse(sodium.to_string(plain)) as Plain;
+    return typeof parsed.t === "string" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
