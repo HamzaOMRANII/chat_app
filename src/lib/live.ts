@@ -37,4 +37,4 @@ export const live = {
   },
 };
 
-export const CHAT_EVENTS = ["msg:new", "msg:status", "typing", "chat:ended", "chat:keys", "chats:changed", "live", "live:peer", "live:ended", "live:changed", "files:deleted", "media:request", "exports:changed", "call:incoming", "call:answered", "call:signal", "call:ended", "call:left", "group:msg", "group:read", "group:changed", "group:typing"] as const;
+export const CHAT_EVENTS = ["msg:new", "msg:status", "typing", "chat:ended", "chat:keys", "chats:changed", "live", "live:peer", "live:ended", "live:changed", "files:deleted", "media:request", "exports:changed", "call:incoming", "call:answered", "call:signal", "call:ended", "call:left", "call:joined", "group:msg", "group:read", "group:changed", "group:typing", "group:call"] as const;

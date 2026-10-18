@@ -12,6 +12,8 @@ export type Group = {
   members: GroupMember[];
   keys: PublishedKey[];
   lastMessageAt: string | null;
+  /** A call running in the group right now (anyone can join, up to 6). */
+  call: { callId: string; kind: "voice" | "video"; startedBy: string; joined: string[] } | null;
   unread: number;
 };
 export type GroupRequest = { id: string; name: string; status: "pending" | "refused"; members: string[]; at: string };

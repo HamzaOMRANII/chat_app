@@ -10,6 +10,7 @@ import { bytes, downloadFile, forgetFiles, saveBlob, uploadFile, type FileInfo }
 import { ensureGroupKey, latestGroupKey, memberColor, recipientKeys, type Group, type GroupWire } from "../lib/groups";
 import { live } from "../lib/live";
 import { useViewOnlyProtection } from "../lib/protect";
+import { calls } from "../lib/calls";
 
 const MAX_LENGTH = 4000;
 const TYPING_SHOWN_MS = 4000;
@@ -150,6 +151,9 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
       }),
       live.on<{ groupId?: string }>("files:deleted", ({ groupId: id }) => id === groupId && void load()),
       live.on("resync", () => void load()),
+      live.on<{ groupId: string; call: Group["call"] }>("group:call", ({ groupId: id, call }) => {
+        if (id === groupId) setGroup((g) => (g ? { ...g, call } : g));
+      }),
     ];
     const visible = () => markRead();
     document.addEventListener("visibilitychange", visible);
@@ -280,7 +284,51 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
             ) : null}
           </span>
         </button>
+        {group ? (
+          <>
+            <button
+              type="button"
+              onClick={() => void calls.startGroup({ id: group.id, name: group.name }, "voice")}
+              disabled={Boolean(group.call)}
+              aria-label="Group voice call"
+              title="Group voice call"
+              className="grid size-11 shrink-0 place-items-center rounded-field border border-[#1F8A5B] bg-[#1F8A5B]/[0.12] text-[#7FE3B6] disabled:opacity-40"
+            >
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onClick={() => void calls.startGroup({ id: group.id, name: group.name }, "video")}
+              disabled={Boolean(group.call)}
+              aria-label="Group video call"
+              title="Group video call"
+              className="grid size-11 shrink-0 place-items-center rounded-field border border-[#1F8A5B] bg-[#1F8A5B]/[0.12] text-[#7FE3B6] disabled:opacity-40"
+            >
+              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M3 6h12v12H3zM15 10l6-3v10l-6-3" />
+              </svg>
+            </button>
+          </>
+        ) : null}
       </header>
+      {group?.call && !group.call.joined.includes(userId) ? (
+        <div role="status" className="flex items-center gap-3 border-b border-[#1F8A5B] bg-[#1F8A5B]/[0.12] px-4 py-2.5">
+          <span className="size-2 shrink-0 animate-pulse rounded-full bg-[#7FE3B6]" aria-hidden="true" />
+          <span className="grow text-[13.5px] text-ink">
+            {group.call.kind === "video" ? "Video call" : "Call"} in progress · {group.call.joined.length} {group.call.joined.length === 1 ? "person" : "people"}
+          </span>
+          <button
+            type="button"
+            disabled={group.call.joined.length >= 6}
+            onClick={() => void calls.joinRunning({ id: group.id, name: group.name }, group.call!.callId, group.call!.kind)}
+            className="min-h-9 shrink-0 rounded-[10px] bg-[#1F8A5B] px-3.5 text-[13px] font-bold text-white disabled:opacity-50"
+          >
+            {group.call.joined.length >= 6 ? "Full" : "Join"}
+          </button>
+        </div>
+      ) : null}
       {group ? (
         <p className="m-0 flex items-center gap-2.5 border-b border-line bg-panel px-[18px] py-2 font-mono text-[11px] text-dim">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`shrink-0 ${group.mode === "auto" ? "text-auto" : "text-keep"}`} aria-hidden="true">
