@@ -110,6 +110,33 @@ describe("H_CHAT sign-in flow", () => {
     expect(screen.getByText("Old laptop")).toBeInTheDocument();
   });
 
+  it("reveals the secure-code field after 5 taps on the title and signs in with it", async () => {
+    routes["/api/auth/login"] = () => [200, { challengeId: "c".repeat(24), emailHint: "h•••a@example.com" }];
+    routes["/api/auth/verify-secure-code"] = (body) =>
+      body.secureCode === "55667788"
+        ? [200, { user: { id: "1", username: "hamza", email: "hamza@example.com", mustReset: false }, lastLogin: null }]
+        : [400, { error: "Wrong secure code.", code: "wrong_secure_code", details: { attemptsLeft: 4 } }];
+
+    render(<App />);
+    await screen.findByLabelText("Username or email");
+    type("Username or email", "hamza");
+    type("Password", "correct horse battery");
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    const title = await screen.findByText("Check your email");
+    expect(screen.queryByLabelText("Secure code")).not.toBeInTheDocument();
+    for (let i = 0; i < 4; i++) fireEvent.click(title);
+    expect(screen.queryByLabelText("Secure code")).not.toBeInTheDocument();
+    fireEvent.click(title);
+
+    type("Secure code", "11111111");
+    fireEvent.click(screen.getByRole("button", { name: "Sign in with secure code" }));
+    expect(await screen.findByText("Wrong secure code.")).toBeInTheDocument();
+    type("Secure code", "55667788");
+    fireEvent.click(screen.getByRole("button", { name: "Sign in with secure code" }));
+    expect(await screen.findByText("No contacts yet")).toBeInTheDocument();
+    expect(calls.filter((c) => c.path === "/api/auth/verify-secure-code").at(-1)!.body).toEqual({ challengeId: "c".repeat(24), secureCode: "55667788" });
+  });
+
   it("shows the waiting screen for an account that isn't approved yet", async () => {
     routes["/api/auth/login"] = () => [403, { error: "Your account is waiting for approval.", code: "pending" }];
     render(<App />);

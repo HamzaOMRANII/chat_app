@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Button } from "../components/Button";
 import { CodeInput } from "../components/CodeInput";
+import { TextField } from "../components/TextField";
 import { AuthScreen, Card, Notice, TextLink } from "../components/Screen";
 import { api, ApiError } from "../lib/api";
 import type { Challenge, LastLogin, User } from "../app/types";
@@ -17,6 +18,15 @@ export function CodePage({ challenge, onSignedIn, onUsePasscode, onRestart }: Pr
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [seconds, setSeconds] = useState(5 * 60);
+  // Hidden: 5 taps on the title within 3 s reveal the secure-code field (set in Settings)
+  const [showSecure, setShowSecure] = useState(false);
+  const [secureError, setSecureError] = useState("");
+  const taps = useRef<number[]>([]);
+  function onTitleTap() {
+    const now = Date.now();
+    taps.current = [...taps.current.filter((t) => now - t < 3000), now];
+    if (taps.current.length >= 5) setShowSecure(true);
+  }
 
   useEffect(() => {
     const timer = setInterval(() => setSeconds((s) => Math.max(s - 1, 0)), 1000);
@@ -40,16 +50,47 @@ export function CodePage({ challenge, onSignedIn, onUsePasscode, onRestart }: Pr
     }
   }
 
+  async function onSecureSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const secureCode = String(new FormData(form).get("secureCode") ?? "");
+    setBusy(true);
+    setSecureError("");
+    try {
+      const res = await api<{ user: User; lastLogin: LastLogin }>("/api/auth/verify-secure-code", { body: { challengeId: challenge.challengeId, secureCode } });
+      onSignedIn(res.user, res.lastLogin);
+    } catch (err) {
+      if (err instanceof ApiError && (err.code === "challenge_expired" || err.code === "locked" || err.details?.attemptsLeft === 0)) onRestart(err.message);
+      else setSecureError(err instanceof Error ? err.message : "Something went wrong");
+      form.reset();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const expired = seconds === 0;
   return (
     <AuthScreen>
       <p className="eyebrow m-0">step 2 of 2</p>
       <div className="flex flex-col gap-2">
-        <h1 className="m-0 text-[26px] font-extrabold tracking-[-0.02em]">Check your email</h1>
+        <h1 onClick={onTitleTap} className="m-0 select-none text-[26px] font-extrabold tracking-[-0.02em]">
+          Check your email
+        </h1>
         <p className="m-0 text-[14.5px] leading-relaxed text-ink-soft">
           We sent a 6-digit code to <span className="font-mono text-ink">{challenge.emailHint}</span>. It works for 5 minutes.
         </p>
       </div>
+      {showSecure ? (
+        <Card>
+          <form onSubmit={onSecureSubmit} className="flex flex-col gap-4">
+            <TextField label="Secure code" name="secureCode" type="password" inputMode="numeric" mono required pattern="\d{8,12}" title="8 to 12 digits" autoComplete="off" autoFocus className="text-[22px] tracking-[0.3em]" />
+            {secureError ? <Notice tone="error">{secureError}</Notice> : null}
+            <Button type="submit" block disabled={busy}>
+              {busy ? "Checking…" : "Sign in with secure code"}
+            </Button>
+          </form>
+        </Card>
+      ) : null}
       <Card>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <fieldset className="m-0 flex flex-col gap-2.5 border-0 p-0">
