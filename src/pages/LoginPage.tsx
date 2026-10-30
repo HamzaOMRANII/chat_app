@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { Logo, Wordmark } from "../components/Logo";
 import { Button } from "../components/Button";
 import { TextField } from "../components/TextField";
@@ -6,7 +6,7 @@ import { Notice, TextLink } from "../components/Screen";
 import { api, ApiError } from "../lib/api";
 import { deviceInfo } from "../lib/device";
 import { AndroidDownload } from "../components/AndroidDownload";
-import { isNativeApp, serverUrl } from "../lib/platform";
+import { isNativeApp, } from "../lib/platform";
 import type { Challenge } from "../app/types";
 
 type Props = {

@@ -223,7 +223,7 @@ function DevicePanel({ s, onClose, side }: { s: CallState; onClose: () => void; 
                 type="button"
                 role="radio"
                 aria-checked={s.outputId === o.id}
-                onClick={() => void calls.useOutput(o.id)}
+                onClick={() => void calls.selectOutput(o.id)}
                 className={`flex min-h-11 items-center gap-3 rounded-xl border px-3 text-left text-[14px] ${s.outputId === o.id ? "border-accent bg-accent/10 font-bold text-ink" : "border-line text-ink-soft"}`}
               >
                 <span className={`grid size-[18px] place-items-center rounded-full border-2 ${s.outputId === o.id ? "border-accent" : "border-faint"}`}>
@@ -234,7 +234,7 @@ function DevicePanel({ s, onClose, side }: { s: CallState; onClose: () => void; 
             ))}
           </div>
         ) : canSink && s.devices.speakers.length ? (
-          pick("speaker", s.devices.speakers, s.speakerId ?? "default", (id) => void calls.useOutput(id), "Speaker")
+          pick("speaker", s.devices.speakers, s.speakerId ?? "default", (id) => void calls.selectOutput(id), "Speaker")
         ) : (
           <p className="m-0 text-[12.5px] text-faint">This browser plays calls on the computer's default output.</p>
         )}
@@ -249,12 +249,12 @@ function DevicePanel({ s, onClose, side }: { s: CallState; onClose: () => void; 
         <h3 id="in-title" className="m-0 font-mono text-[10.5px] uppercase tracking-[0.12em] text-dim">
           speak with (input)
         </h3>
-        {pick("microphone", s.devices.mics, s.micId ?? current("audio"), (id) => void calls.useMic(id), "Microphone")}
+        {pick("microphone", s.devices.mics, s.micId ?? current("audio"), (id) => void calls.selectMic(id), "Microphone")}
         <Level stream={s.local} muted={s.muted} />
         {isNativeApp ? <p className="m-0 text-[11.5px] leading-normal text-faint">A Bluetooth headset chosen above also uses its own microphone.</p> : null}
       </section>
 
-      {s.kind === "video" ? pick("camera", s.devices.cams, s.camId ?? current("video"), (id) => void calls.useCamera(id), "Camera") : null}
+      {s.kind === "video" ? pick("camera", s.devices.cams, s.camId ?? current("video"), (id) => void calls.selectCamera(id), "Camera") : null}
       <p className="m-0 text-xs leading-normal text-faint">
         "Their voice" moves when sound arrives from {s.peer?.username ?? "them"}; the green bar when your microphone picks you up. Changes apply at once, without hanging up.
       </p>
@@ -320,7 +320,7 @@ export function CallScreen() {
   if (s.phase === "incoming") {
     const card = (
       <>
-        <p className="m-0 font-mono text-[11px] uppercase tracking-[0.16em] text-dim">// incoming {s.group ? "group " : ""}{s.kind} call</p>
+        <p className="m-0 font-mono text-[11px] uppercase tracking-[0.16em] text-dim">{"// incoming "}{s.group ? "group " : ""}{s.kind} call</p>
         {s.group ? <GroupIcon size={wide ? 88 : 112} /> : <Avatar username={name} size={wide ? 88 : 112} />}
         <h1 className="m-0 text-[26px] font-extrabold">{s.group ? s.group.name : name}</h1>
         {s.group ? <p className="m-0 text-sm text-ink-soft">started by {name}</p> : null}

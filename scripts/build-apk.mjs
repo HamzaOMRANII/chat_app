@@ -51,7 +51,7 @@ const latest = {
   date: new Date().toISOString(),
   ...(notes ? { notes } : {}),
 };
-writeFileSync(join(outDir, "latest.json"), JSON.stringify(latest, null, 2) + "\n");
+writeFileSync(join(outDir, "latest.json"), `${JSON.stringify(latest, null, 2)}\n`);
 
 const versions = readdirSync(outDir)
   .filter((f) => /^h_chat-\d+\.\d+\.\d+\.apk$/.test(f))

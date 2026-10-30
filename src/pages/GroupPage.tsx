@@ -346,7 +346,7 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
         {visible.map((m) =>
           m.system ? (
             <p key={m.id} className="m-0 self-center text-center font-mono text-[11px] text-faint">
-              // {(SYSTEM[m.system.kind] ?? (() => "the group changed"))(m.system.name ?? "someone")} · {time(m.sentAt)}
+              {"// "}{(SYSTEM[m.system.kind] ?? (() => "the group changed"))(m.system.name ?? "someone")} · {time(m.sentAt)}
             </p>
           ) : (
             <div key={m.id} className={`flex max-w-[86%] gap-2 ${m.mine ? "self-end" : "self-start"}`}>

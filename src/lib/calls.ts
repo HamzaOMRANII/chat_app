@@ -565,15 +565,15 @@ export const calls = {
     set({ facing, camId: null });
     await this.swap("video", { facingMode: facing }).catch(() => {});
   },
-  async useMic(id: string) {
+  async selectMic(id: string) {
     set({ micId: id });
     await this.swap("audio", { deviceId: { exact: id }, echoCancellation: true, noiseSuppression: true }).catch(() => {});
   },
-  async useCamera(id: string) {
+  async selectCamera(id: string) {
     set({ camId: id });
     await this.swap("video", { deviceId: { exact: id } }).catch(() => {});
   },
-  useSpeaker(id: string) {
+  selectSpeaker(id: string) {
     set({ speakerId: id });
   },
   /** Android: the list of outputs (earpiece, loudspeaker, each headset by name). */
@@ -583,8 +583,8 @@ export const calls = {
     if (r) set({ outputs: r.devices, outputId: r.current });
   },
   /** Hear the call on this output: Android by id, a browser through setSinkId. */
-  async useOutput(id: string) {
-    if (!CallAudio) return this.useSpeaker(id);
+  async selectOutput(id: string) {
+    if (!CallAudio) return this.selectSpeaker(id);
     const r = await CallAudio.setDevice({ id }).catch(() => null);
     if (r) set({ speaker: r.speaker, route: r.route, outputId: r.id ?? id });
     await this.loadOutputs();

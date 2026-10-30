@@ -458,7 +458,7 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
           <div className={`flex grow flex-col gap-2 overflow-y-auto p-4 ${waiting ? "opacity-55" : ""}`} aria-live="polite">
             <div className="grow" />
             {session.startedAt ? (
-              <p className="m-0 self-center font-mono text-[11px] text-faint">// live since {new Date(session.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+              <p className="m-0 self-center font-mono text-[11px] text-faint">{"// live since "}{new Date(session.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
             ) : null}
             {lines.map((l) =>
               l.fileId ? (

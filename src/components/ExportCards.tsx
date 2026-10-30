@@ -56,7 +56,7 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
   }
 
   const what = (e: ExportReq) =>
-    [e.messages ? `${e.counts.messages} messages` : "", e.media ? `${e.counts.files} files · ${bytes(e.counts.bytes)}` : ""].filter(Boolean).join(" + ") + ` · ${PERIOD_TEXT[e.period]}`;
+    `${[e.messages ? `${e.counts.messages} messages` : "", e.media ? `${e.counts.files} files · ${bytes(e.counts.bytes)}` : ""].filter(Boolean).join(" + ")} · ${PERIOD_TEXT[e.period]}`;
 
   return (
     <>
@@ -65,7 +65,7 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
         if (e.status === "refused") {
           return (
             <p key={e.id} className="m-0 self-center font-mono text-[11px] text-danger-ink">
-              // {peer} refused your export
+              {"// "}{peer} refused your export
             </p>
           );
         }
@@ -90,7 +90,7 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
         if (e.status === "pending") {
           return (
             <p key={e.id} className="m-0 flex flex-wrap items-center justify-center gap-2 self-center font-mono text-[11px] text-dim">
-              // waiting for {peer} to approve your export
+              {"// waiting for "}{peer} to approve your export
               <button type="button" onClick={() => void act(`/api/exports/${e.id}`, "DELETE")} className="bg-transparent p-0 font-mono text-[11px] text-link">
                 cancel
               </button>
@@ -100,7 +100,7 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
         if (!mine) {
           return (
             <p key={e.id} className="m-0 self-center font-mono text-[11px] text-dim">
-              // {peer} can save the export for {left(e.until, now)} more{e.downloadedAt ? " · saved" : ""}
+              {"// "}{peer} can save the export for {left(e.until, now)} more{e.downloadedAt ? " · saved" : ""}
             </p>
           );
         }

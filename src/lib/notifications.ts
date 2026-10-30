@@ -57,7 +57,7 @@ async function subscribeWeb() {
   const { pushKey } = await api<{ pushKey: string | null }>("/api/notifications");
   if (!pushKey) return false;
   let sub = await reg.pushManager.getSubscription();
-  if (sub && sub.options.applicationServerKey) {
+  if (sub?.options.applicationServerKey) {
     const current = new Uint8Array(sub.options.applicationServerKey);
     const wanted = keyBytes(pushKey);
     if (current.length !== wanted.length || current.some((b, i) => b !== wanted[i])) {

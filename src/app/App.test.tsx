@@ -24,8 +24,8 @@ vi.mock("socket.io-client", () => ({
 // libsodium can't run in jsdom (separate realm); the real crypto is covered by lib/e2e.test.ts.
 // Here: a transparent stand-in so the screens can be exercised end to end.
 vi.mock("../lib/e2e", () => ({
-  identity: async (_u: string, deviceId: string) => ({ deviceId, signPub: "I".repeat(43) + "=", signSec: "s" }),
-  newChatKey: async () => ({ pub: "P".repeat(43) + "=", sig: "S".repeat(86) + "==", secret: "x" }),
+  identity: async (_u: string, deviceId: string) => ({ deviceId, signPub: `${"I".repeat(43)}=`, signSec: "s" }),
+  newChatKey: async () => ({ pub: `${"P".repeat(43)}=`, sig: `${"S".repeat(86)}==`, secret: "x" }),
   keepChatKey: () => {},
   hasChatKey: () => true,
   forgetChat: () => {},
@@ -43,7 +43,7 @@ vi.mock("../lib/e2e", () => ({
   markSafetyChecked: () => {},
   sealLive: async ({ plain }: { plain: unknown }) => ({ nonce: "N".repeat(32), ct: btoa(JSON.stringify(plain)) }),
   openLive: async ({ ct }: { ct: string }) => JSON.parse(atob(ct)),
-  newFileKey: async () => "K".repeat(43) + "=",
+  newFileKey: async () => `${"K".repeat(43)}=`,
   sealPiece: async (_k: string, _id: string, _n: number, _c: number, data: Uint8Array) => new Uint8Array(data.length + 40),
   openPiece: async (_k: string, _id: string, _n: number, _c: number, sealed: Uint8Array) => sealed.subarray(40),
 }));
@@ -303,8 +303,8 @@ describe("Android app download", () => {
 
 describe("stored chats", () => {
   const me = { id: "1".repeat(24), username: "hamza", email: "hamza@example.com", mustReset: false };
-  const leila = { id: "2".repeat(24), username: "leila.b", online: true, lastSeenAt: null, identityPub: "I".repeat(43) + "=" };
-  const key = (userId: string) => ({ userId, version: 1, pub: "P".repeat(43) + "=", sig: "S".repeat(86) + "==", identityPub: "I".repeat(43) + "=" });
+  const leila = { id: "2".repeat(24), username: "leila.b", online: true, lastSeenAt: null, identityPub: `${"I".repeat(43)}=` };
+  const key = (userId: string) => ({ userId, version: 1, pub: `${"P".repeat(43)}=`, sig: `${"S".repeat(86)}==`, identityPub: `${"I".repeat(43)}=` });
   const enc = (t: string) => btoa(JSON.stringify({ t }));
   const wire = (id: string, senderId: string, text: string, extra: Record<string, unknown> = {}) => ({
     id,
@@ -374,7 +374,7 @@ describe("stored chats", () => {
     expect(posted[0]).toMatchObject({ senderKeyVersion: 1, recipientKeyVersion: 1 });
     expect(posted[0]).not.toHaveProperty("text");
 
-    socketHandlers["typing"]?.({ chatId: "c".repeat(24) });
+    socketHandlers.typing?.({ chatId: "c".repeat(24) });
     expect(await screen.findByText("leila.b is typing…")).toBeInTheDocument();
     socketHandlers["msg:new"]?.({ chatId: "c".repeat(24), message: wire("m2", leila.id, "Can you send the signed copy?") });
     expect(await screen.findByText("Can you send the signed copy?")).toBeInTheDocument();
@@ -420,7 +420,7 @@ describe("stored chats", () => {
 
     // Sent while this phone's connection was down: no live event ever came
     wireList = [...wireList, wire("m2", leila.id, "Sent while you were offline")];
-    socketHandlers["connect"]!(undefined);
+    socketHandlers.connect!(undefined);
     expect(await screen.findByText("Sent while you were offline")).toBeInTheDocument();
   });
 
@@ -430,9 +430,9 @@ describe("stored chats", () => {
     routes[`/api/chats/${"c".repeat(24)}/messages`] = () => [200, { messages: [] }];
     render(<App />);
     expect(await screen.findByRole("button", { name: "Add contact" })).toBeInTheDocument();
-    await waitFor(() => expect(socketHandlers["notify"]).toBeDefined());
+    await waitFor(() => expect(socketHandlers.notify).toBeDefined());
 
-    socketHandlers["notify"]!({ kind: "contact_request", title: "rami.t", body: "wants to connect with you", tag: "contact:r", open: {}, system: true });
+    socketHandlers.notify!({ kind: "contact_request", title: "rami.t", body: "wants to connect with you", tag: "contact:r", open: {}, system: true });
     expect(await screen.findByText("wants to connect with you")).toBeInTheDocument();
 
     // leila accepts my invitation: the chat opens without a tap
@@ -440,8 +440,8 @@ describe("stored chats", () => {
     expect(await screen.findByText("No messages yet. Say hello.")).toBeInTheDocument();
 
     // A message in another chat: banner; in this one: nothing extra
-    socketHandlers["notify"]!({ kind: "message", title: "leila.b", body: "New message", tag: `chat:${"c".repeat(24)}`, open: { chatId: "c".repeat(24) }, system: true });
-    socketHandlers["notify"]!({ kind: "message", title: "rami.t", body: "New message", tag: `chat:${"d".repeat(24)}`, open: { chatId: "d".repeat(24) }, system: true });
+    socketHandlers.notify!({ kind: "message", title: "leila.b", body: "New message", tag: `chat:${"c".repeat(24)}`, open: { chatId: "c".repeat(24) }, system: true });
+    socketHandlers.notify!({ kind: "message", title: "rami.t", body: "New message", tag: `chat:${"d".repeat(24)}`, open: { chatId: "d".repeat(24) }, system: true });
     expect(await screen.findAllByText("New message")).toHaveLength(1);
     expect(screen.getByRole("button", { name: /rami\.t\s*New message/ })).toBeInTheDocument();
   });
@@ -479,8 +479,8 @@ describe("stored chats", () => {
 
 describe("live chats", () => {
   const me = { id: "1".repeat(24), username: "hamza", email: "hamza@example.com", mustReset: false };
-  const leila = { id: "2".repeat(24), username: "leila.b", online: true, identityPub: "I".repeat(43) + "=" };
-  const key = (userId: string) => ({ userId, pub: "P".repeat(43) + "=", sig: "S".repeat(86) + "==", identityPub: "I".repeat(43) + "=" });
+  const leila = { id: "2".repeat(24), username: "leila.b", online: true, identityPub: `${"I".repeat(43)}=` };
+  const key = (userId: string) => ({ userId, pub: `${"P".repeat(43)}=`, sig: `${"S".repeat(86)}==`, identityPub: `${"I".repeat(43)}=` });
   const id = "d".repeat(24);
   const session = (over: Record<string, unknown> = {}) => ({
     id,
@@ -521,12 +521,12 @@ describe("live chats", () => {
 
     // Their draft appears letter by letter, corrections included; a finished line stays
     await waitFor(() => expect(screen.getByLabelText("Live message")).not.toBeDisabled());
-    socketHandlers["live"]!(sealed({ t: "draft", text: "Total is 4", n: 1 }));
+    socketHandlers.live!(sealed({ t: "draft", text: "Total is 4", n: 1 }));
     expect(await screen.findByText("leila.b is typing live")).toBeInTheDocument();
-    socketHandlers["live"]!(sealed({ t: "draft", text: "Total is", n: 2 }));
+    socketHandlers.live!(sealed({ t: "draft", text: "Total is", n: 2 }));
     await screen.findByText("Total is");
-    socketHandlers["live"]!(sealed({ t: "draft", text: "stale", n: 1 })); // out of order: ignored
-    socketHandlers["live"]!(sealed({ t: "line", text: "Total is 42", n: 3 }));
+    socketHandlers.live!(sealed({ t: "draft", text: "stale", n: 1 })); // out of order: ignored
+    socketHandlers.live!(sealed({ t: "line", text: "Total is 42", n: 3 }));
     expect(await screen.findByText("Total is 42")).toBeInTheDocument();
     expect(screen.queryByText("leila.b is typing live")).toBeNull();
     expect(screen.queryByText("stale")).toBeNull();

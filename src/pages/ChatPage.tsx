@@ -581,7 +581,7 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
                 const showDay = i === 0 || dayLabel(list[i - 1]!.sentAt) !== day;
                 return (
                   <div key={m.id} className="contents">
-                    {showDay ? <p className="m-0 self-center font-mono text-[11px] text-faint">// {day}</p> : null}
+                    {showDay ? <p className="m-0 self-center font-mono text-[11px] text-faint">{"// "}{day}</p> : null}
                     <div className={`flex max-w-[82%] flex-col gap-1 ${m.mine ? "items-end self-end" : "items-start self-start"}`}>
                       {m.file ? <FileBubble file={m.file} info={files.get(m.file.id)} mine={m.mine} onOpen={() => void openFile(m)} /> : null}
                       {m.text ? (
@@ -746,7 +746,7 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
       {confirmEnd ? (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 px-[18px]">
           <section role="alertdialog" aria-labelledby="end-title" className="flex w-full max-w-[420px] flex-col gap-3.5 rounded-[22px] border border-line-strong bg-panel px-5 py-[22px] shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
-            <p className="m-0 font-mono text-[11px] uppercase tracking-[0.14em] text-danger-ink">// end chat</p>
+            <p className="m-0 font-mono text-[11px] uppercase tracking-[0.14em] text-danger-ink">{"// end chat"}</p>
             <h2 id="end-title" className="m-0 text-[21px] font-extrabold">
               End this chat with {peerName}?
             </h2>
