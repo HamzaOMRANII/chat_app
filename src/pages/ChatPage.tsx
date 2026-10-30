@@ -2,7 +2,18 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEve
 import { Avatar } from "../components/PageHeader";
 import { Notice } from "../components/Screen";
 import { api, ApiError } from "../lib/api";
-import { ensureMyKey, forgetChat, keepChatKey, latestKey, longDuration, makeChatKey, modeLabel, theirVerifiedKey, type Chat, type WireMessage } from "../lib/chats";
+import {
+  ensureMyKey,
+  forgetChat,
+  keepChatKey,
+  latestKey,
+  longDuration,
+  makeChatKey,
+  modeLabel,
+  theirVerifiedKey,
+  type Chat,
+  type WireMessage,
+} from "../lib/chats";
 import { lastSeen } from "../lib/contacts";
 import { decryptMessage, encryptMessage } from "../lib/e2e";
 import { live } from "../lib/live";
@@ -18,7 +29,16 @@ import { useViewOnlyProtection } from "../lib/protect";
 import { calls } from "../lib/calls";
 import { bytes, downloadFile, forgetFiles, saveBlob, uploadFile, type FileInfo, type FileRef } from "../lib/files";
 
-type Shown = { id: string; mine: boolean; text: string | null; file?: FileRef; sentAt: string; deliveredAt: string | null; readAt: string | null; expiresAt: string };
+type Shown = {
+  id: string;
+  mine: boolean;
+  text: string | null;
+  file?: FileRef;
+  sentAt: string;
+  deliveredAt: string | null;
+  readAt: string | null;
+  expiresAt: string;
+};
 type Props = {
   chatId: string;
   userId: string;
@@ -154,9 +174,28 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
           const theirKey = current.keys.find((k) => k.userId === peerId && k.version === theirVersion);
           const plain =
             myKey && theirKey
-              ? await decryptMessage({ userId, chatId: current.id, senderId: m.senderId, myKey, theirKey, ciphertext: m.ciphertext, nonce: m.nonce, senderKeyVersion: m.senderKeyVersion, recipientKeyVersion: m.recipientKeyVersion })
+              ? await decryptMessage({
+                  userId,
+                  chatId: current.id,
+                  senderId: m.senderId,
+                  myKey,
+                  theirKey,
+                  ciphertext: m.ciphertext,
+                  nonce: m.nonce,
+                  senderKeyVersion: m.senderKeyVersion,
+                  recipientKeyVersion: m.recipientKeyVersion,
+                })
               : null;
-          return { id: m.id, mine, text: plain?.t ?? null, file: plain?.f, sentAt: m.sentAt, deliveredAt: m.deliveredAt, readAt: m.readAt, expiresAt: m.expiresAt };
+          return {
+            id: m.id,
+            mine,
+            text: plain?.t ?? null,
+            file: plain?.f,
+            sentAt: m.sentAt,
+            deliveredAt: m.deliveredAt,
+            readAt: m.readAt,
+            expiresAt: m.expiresAt,
+          };
         }),
       );
     },
@@ -213,10 +252,13 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
         // Recorded at once (not inside a state update, which React runs later)
         const shown = new Set(messagesRef.current.map((m) => m.id));
         for (const mid of [...delivered, ...read]) {
-          if (!shown.has(mid)) earlyStatus.current.set(mid, { deliveredAt: earlyStatus.current.get(mid)?.deliveredAt ?? at, readAt: read.includes(mid) ? at : null });
+          if (!shown.has(mid))
+            earlyStatus.current.set(mid, { deliveredAt: earlyStatus.current.get(mid)?.deliveredAt ?? at, readAt: read.includes(mid) ? at : null });
         }
         setMessages((list) =>
-          list.map((m) => (read.includes(m.id) ? { ...m, deliveredAt: m.deliveredAt ?? at, readAt: at } : delivered.includes(m.id) ? { ...m, deliveredAt: at } : m)),
+          list.map((m) =>
+            read.includes(m.id) ? { ...m, deliveredAt: m.deliveredAt ?? at, readAt: at } : delivered.includes(m.id) ? { ...m, deliveredAt: at } : m,
+          ),
         );
       }),
       live.on<{ chatId: string }>("typing", ({ chatId: id }) => id === chatId && setTypingUntil(Date.now() + TYPING_SHOWN_MS)),
@@ -286,7 +328,15 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
       earlyStatus.current.delete(message.id);
       setMessages((list) => [
         ...list.filter((m) => m.id !== message.id),
-        { id: message.id, mine: true, text, sentAt: message.sentAt, deliveredAt: early?.deliveredAt ?? null, readAt: early?.readAt ?? null, expiresAt: message.expiresAt },
+        {
+          id: message.id,
+          mine: true,
+          text,
+          sentAt: message.sentAt,
+          deliveredAt: early?.deliveredAt ?? null,
+          readAt: early?.readAt ?? null,
+          expiresAt: message.expiresAt,
+        },
       ]);
       setDraft("");
     } catch (err) {
@@ -307,14 +357,31 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
       try {
         const current = chatRef.current;
         if (!current) throw new Error("The chat isn't ready.");
-        const ref = { ...(await uploadFile(chatId, file, (done) => setUploads((list) => list.map((u) => (u.key === key ? { ...u, done } : u))), abort.signal)), view: viewOnly };
+        const ref = {
+          ...(await uploadFile(chatId, file, (done) => setUploads((list) => list.map((u) => (u.key === key ? { ...u, done } : u))), abort.signal)),
+          view: viewOnly,
+        };
         const myKey = latestKey(current, userId);
         const theirKey = await theirVerifiedKey(current, userId);
         if (!myKey || !theirKey) throw new Error("The chat keys aren't ready. Try again in a moment.");
         const body = await encryptMessage({ userId, chatId, myKey, theirKey, plain: { t: "", f: ref } });
         const { message } = await api<{ message: WireMessage }>(`/api/chats/${chatId}/messages`, { body: { ...body, fileId: ref.id } });
-        setFiles((map) => new Map(map).set(ref.id, { id: ref.id, senderId: userId, kind: "other", size: ref.size, status: "ready", deletedReason: null, messageId: message.id, expiresAt: message.expiresAt }));
-        setMessages((list) => [...list.filter((m) => m.id !== message.id), { id: message.id, mine: true, text: "", file: ref, sentAt: message.sentAt, deliveredAt: null, readAt: null, expiresAt: message.expiresAt }]);
+        setFiles((map) =>
+          new Map(map).set(ref.id, {
+            id: ref.id,
+            senderId: userId,
+            kind: "other",
+            size: ref.size,
+            status: "ready",
+            deletedReason: null,
+            messageId: message.id,
+            expiresAt: message.expiresAt,
+          }),
+        );
+        setMessages((list) => [
+          ...list.filter((m) => m.id !== message.id),
+          { id: message.id, mine: true, text: "", file: ref, sentAt: message.sentAt, deliveredAt: null, readAt: null, expiresAt: message.expiresAt },
+        ]);
       } catch (err) {
         if (!abort.signal.aborted) fail(err);
       } finally {
@@ -329,8 +396,12 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
   /** Photos and videos open in the viewer; other files download (where the rules allow it). */
   async function openFile(m: Shown) {
     if (!m.file) return;
-    if (/^(image|video|text)\//.test(m.file.mime) || m.file.mime === "application/json") return setViewing({ file: m.file, mine: m.mine, sentAt: m.sentAt, expiresAt: m.expiresAt });
-    if (!canSave(m.file, m.mine)) return setFileNote(m.file.view ? `${peerName} shared ${m.file.name} as view only: it can't be downloaded.` : "Downloading files isn't allowed with this contact.");
+    if (/^(image|video|text)\//.test(m.file.mime) || m.file.mime === "application/json")
+      return setViewing({ file: m.file, mine: m.mine, sentAt: m.sentAt, expiresAt: m.expiresAt });
+    if (!canSave(m.file, m.mine))
+      return setFileNote(
+        m.file.view ? `${peerName} shared ${m.file.name} as view only: it can't be downloaded.` : "Downloading files isn't allowed with this contact.",
+      );
     try {
       setFileNote(`Opening ${m.file.name}…`);
       setFileNote(`${await saveBlob(await downloadFile(m.file), m.file.name)}: ${m.file.name}`);
@@ -410,13 +481,33 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
     return (
       <>
         <button type="button" onClick={() => start("voice")} aria-label="Voice call" title="Voice call" className={style}>
-          <svg viewBox="0 0 24 24" width={row ? 16 : 19} height={row ? 16 : 19} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width={row ? 16 : 19}
+            height={row ? 16 : 19}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" />
           </svg>
           {row ? <span aria-hidden="true">Call</span> : null}
         </button>
         <button type="button" onClick={() => start("video")} aria-label="Video call" title="Video call" className={style}>
-          <svg viewBox="0 0 24 24" width={row ? 16 : 19} height={row ? 16 : 19} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width={row ? 16 : 19}
+            height={row ? 16 : 19}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M3 6h12v12H3zM15 10l6-3v10l-6-3" />
           </svg>
           {row ? <span aria-hidden="true">Video</span> : null}
@@ -450,7 +541,17 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
             title="Export this chat"
             className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-field border border-line bg-panel text-ink ${row ? "min-h-10 flex-1 text-[13px] font-semibold" : "size-11"}`}
           >
-            <svg viewBox="0 0 24 24" width={row ? 17 : 19} height={row ? 17 : 19} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              width={row ? 17 : 19}
+              height={row ? 17 : 19}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <path d="M12 15V3M7 8l5-5 5 5M5 14v6h14v-6" />
             </svg>
             {row ? <span aria-hidden="true">Export</span> : null}
@@ -463,7 +564,17 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
           title="Media in this chat"
           className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-field border border-line bg-panel text-ink ${row ? "min-h-10 flex-1 text-[13px] font-semibold" : "size-11"}`}
         >
-          <svg viewBox="0 0 24 24" width={row ? 17 : 19} height={row ? 17 : 19} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width={row ? 17 : 19}
+            height={row ? 17 : 19}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <rect x="3" y="4" width="18" height="16" rx="2" />
             <circle cx="9" cy="10" r="2" />
             <path d="M21 16l-5-5-9 9" />
@@ -478,7 +589,17 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
     <main className="mx-auto flex h-dvh w-full max-w-[640px] flex-col">
       <header className="flex items-center gap-2 border-b border-line px-3 pb-2.5 pt-3.5">
         <button type="button" onClick={onBack} aria-label="Back" className="grid size-11 shrink-0 place-items-center rounded-field bg-transparent text-ink">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
@@ -486,7 +607,11 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
           <h1 className="m-0 truncate text-base font-extrabold">{peerName}</h1>
           {chat ? (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-              <span className={`whitespace-nowrap rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${badgeTone(chat.mode)} ${chat.status === "invited" ? "border-dashed" : ""}`}>{modeLabel(chat)}</span>
+              <span
+                className={`whitespace-nowrap rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${badgeTone(chat.mode)} ${chat.status === "invited" ? "border-dashed" : ""}`}
+              >
+                {modeLabel(chat)}
+              </span>
               {peer ? <span className={`font-mono text-[10.5px] ${peer.online ? "text-online" : "text-dim"}`}>{lastSeen(peer)}</span> : null}
             </div>
           ) : null}
@@ -495,8 +620,23 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
           <>
             {wide ? callButtons(false) : null}
             {wide ? extras(false) : null}
-            <button type="button" onClick={() => onSafety(chat)} aria-label="Safety code" className="grid size-11 shrink-0 place-items-center rounded-field border border-line bg-panel text-ink">
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <button
+              type="button"
+              onClick={() => onSafety(chat)}
+              aria-label="Safety code"
+              className="grid size-11 shrink-0 place-items-center rounded-field border border-line bg-panel text-ink"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="19"
+                height="19"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <rect x="4" y="11" width="16" height="10" rx="2" />
                 <path d="M8 11V7a4 4 0 0 1 8 0v4" />
               </svg>
@@ -521,13 +661,21 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
 
       {chat?.status === "active" ? (
         <p className="m-0 flex items-center gap-2.5 border-b border-line bg-panel px-[18px] py-2 font-mono text-[11px] text-dim">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`shrink-0 ${chat.mode === "auto" ? "text-auto" : "text-keep"}`} aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            className={`shrink-0 ${chat.mode === "auto" ? "text-auto" : "text-keep"}`}
+            aria-hidden="true"
+          >
             <circle cx="12" cy="12" r="9" />
             <path d="M12 7v5l3 2" />
           </svg>
-          <span>
-            End-to-end encrypted · messages and files are deleted {longDuration(chat.retentionMinutes)} after they're sent
-          </span>
+          <span>End-to-end encrypted · messages and files are deleted {longDuration(chat.retentionMinutes)} after they're sent</span>
         </p>
       ) : null}
 
@@ -539,22 +687,38 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
           <h2 className="m-0 text-[22px] font-extrabold">{chat.createdByMe ? `Waiting for ${peerName}` : `${peerName} wants to chat`}</h2>
           <p className="m-0 max-w-[36ch] text-[14px] leading-relaxed text-dim">
             {chat.createdByMe ? "You invited them to " : "They invite you to "}
-            {chat.mode === "auto" ? "an Automatic" : "a Keep-alive"} chat: each message is deleted {longDuration(chat.retentionMinutes)} after it's sent. This can't be
-            changed later.
+            {chat.mode === "auto" ? "an Automatic" : "a Keep-alive"} chat: each message is deleted {longDuration(chat.retentionMinutes)} after it's sent. This
+            can't be changed later.
             {chat.createdByMe ? " You can write once they accept." : ""}
           </p>
-          {chat.inviteExpiresAt ? <p className="m-0 font-mono text-[11.5px] text-faint">the invitation expires {new Date(chat.inviteExpiresAt).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}</p> : null}
+          {chat.inviteExpiresAt ? (
+            <p className="m-0 font-mono text-[11.5px] text-faint">
+              the invitation expires {new Date(chat.inviteExpiresAt).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}
+            </p>
+          ) : null}
           {error ? <Notice tone="error">{error}</Notice> : null}
           {chat.createdByMe ? (
-            <button type="button" onClick={() => act("decline")} className="min-h-12 rounded-control border border-line-strong bg-transparent px-5 text-[14.5px] font-semibold text-ink">
+            <button
+              type="button"
+              onClick={() => act("decline")}
+              className="min-h-12 rounded-control border border-line-strong bg-transparent px-5 text-[14.5px] font-semibold text-ink"
+            >
               Cancel invitation
             </button>
           ) : (
             <div className="flex w-full max-w-[320px] gap-2">
-              <button type="button" onClick={() => act("decline")} className="min-h-12 flex-1 rounded-control border border-line-strong bg-transparent text-[14.5px] font-semibold text-ink">
+              <button
+                type="button"
+                onClick={() => act("decline")}
+                className="min-h-12 flex-1 rounded-control border border-line-strong bg-transparent text-[14.5px] font-semibold text-ink"
+              >
                 Decline
               </button>
-              <button type="button" onClick={() => act("accept")} className="min-h-12 flex-1 rounded-control bg-brand text-[14.5px] font-bold text-white hover:bg-brand-hover">
+              <button
+                type="button"
+                onClick={() => act("accept")}
+                className="min-h-12 flex-1 rounded-control bg-brand text-[14.5px] font-bold text-white hover:bg-brand-hover"
+              >
                 Accept
               </button>
             </div>
@@ -566,7 +730,17 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
             <div className="grow" />
             {locked ? (
               <p className="m-0 flex items-center gap-2 self-center rounded-field border border-dashed border-line-strong px-3 py-2 text-xs leading-normal text-dim">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="shrink-0" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="15"
+                  height="15"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  className="shrink-0"
+                  aria-hidden="true"
+                >
                   <rect x="4" y="11" width="16" height="10" rx="2" />
                   <path d="M8 11V7a4 4 0 0 1 8 0v4" />
                 </svg>
@@ -581,7 +755,12 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
                 const showDay = i === 0 || dayLabel(list[i - 1]!.sentAt) !== day;
                 return (
                   <div key={m.id} className="contents">
-                    {showDay ? <p className="m-0 self-center font-mono text-[11px] text-faint">{"// "}{day}</p> : null}
+                    {showDay ? (
+                      <p className="m-0 self-center font-mono text-[11px] text-faint">
+                        {"// "}
+                        {day}
+                      </p>
+                    ) : null}
                     <div className={`flex max-w-[82%] flex-col gap-1 ${m.mine ? "items-end self-end" : "items-start self-start"}`}>
                       {m.file ? <FileBubble file={m.file} info={files.get(m.file.id)} mine={m.mine} onOpen={() => void openFile(m)} /> : null}
                       {m.text ? (
@@ -595,7 +774,8 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
                       ) : null}
                       <p className="m-0 font-mono text-[10.5px] text-faint">
                         {time(m.sentAt)}
-                        {m.mine ? (m.readAt ? <span className="text-accent-soft"> · ✓✓ read</span> : m.deliveredAt ? " · ✓ delivered" : " · sent") : null} · {deletedIn(m.expiresAt, now)}
+                        {m.mine ? m.readAt ? <span className="text-accent-soft"> · ✓✓ read</span> : m.deliveredAt ? " · ✓ delivered" : " · sent" : null} ·{" "}
+                        {deletedIn(m.expiresAt, now)}
                       </p>
                     </div>
                   </div>
@@ -617,7 +797,16 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
                       aria-label={`Cancel sending ${u.name}`}
                       className="grid size-8 shrink-0 place-items-center rounded-[9px] border border-[#5A3640] bg-transparent text-[#F3D3D9]"
                     >
-                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                      <svg
+                        viewBox="0 0 24 24"
+                        width="14"
+                        height="14"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        aria-hidden="true"
+                      >
                         <path d="M6 6l12 12M18 6L6 18" />
                       </svg>
                     </button>
@@ -670,7 +859,17 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
               title={rules && rules.files !== "all" ? "Files aren't allowed with this contact" : "Attach a file"}
               className="grid size-11 shrink-0 place-items-center rounded-field border border-line-strong bg-panel text-ink disabled:border-line disabled:text-[#4A4F63]"
             >
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                width="19"
+                height="19"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
               </svg>
             </button>
@@ -692,7 +891,17 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
               disabled={!draft.trim() || sending || peerMoved}
               className="grid size-[46px] shrink-0 place-items-center rounded-[14px] bg-brand text-white disabled:opacity-50"
             >
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                width="19"
+                height="19"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <path d="M5 12h14M13 6l6 6-6 6" />
               </svg>
             </button>
@@ -700,13 +909,15 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
         </>
       )}
 
-      {attaching && chat ? <AttachSheet
+      {attaching && chat ? (
+        <AttachSheet
           peerName={peerName}
           keptFor={longDuration(chat.retentionMinutes)}
           canExport={Boolean(rules?.export)}
           onPick={(picked, viewOnly) => void sendFiles(picked, viewOnly)}
           onClose={() => setAttaching(false)}
-        /> : null}
+        />
+      ) : null}
       {exporting ? (
         <ExportSheet
           chatId={chatId}
@@ -745,13 +956,18 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
 
       {confirmEnd ? (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 px-[18px]">
-          <section role="alertdialog" aria-labelledby="end-title" className="flex w-full max-w-[420px] flex-col gap-3.5 rounded-[22px] border border-line-strong bg-panel px-5 py-[22px] shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
+          <section
+            role="alertdialog"
+            aria-labelledby="end-title"
+            className="flex w-full max-w-[420px] flex-col gap-3.5 rounded-[22px] border border-line-strong bg-panel px-5 py-[22px] shadow-[0_24px_60px_rgba(0,0,0,0.5)]"
+          >
             <p className="m-0 font-mono text-[11px] uppercase tracking-[0.14em] text-danger-ink">{"// end chat"}</p>
             <h2 id="end-title" className="m-0 text-[21px] font-extrabold">
               End this chat with {peerName}?
             </h2>
             <p className="m-0 text-sm leading-relaxed text-ink-soft">
-              Every message is deleted <strong>now, for both of you</strong>, and the chat's keys are destroyed. This can't be undone. {peerName} sees "Chat ended".
+              Every message is deleted <strong>now, for both of you</strong>, and the chat's keys are destroyed. This can't be undone. {peerName} sees "Chat
+              ended".
             </p>
             <button
               type="button"
@@ -760,7 +976,11 @@ export function ChatPage({ chatId, userId, onBack, onClosed, onSafety, onMedia, 
             >
               END AND DELETE
             </button>
-            <button type="button" onClick={() => setConfirmEnd(false)} className="min-h-[50px] rounded-[14px] border border-line-strong bg-raised text-[14.5px] font-semibold text-ink">
+            <button
+              type="button"
+              onClick={() => setConfirmEnd(false)}
+              className="min-h-[50px] rounded-[14px] border border-line-strong bg-raised text-[14.5px] font-semibold text-ink"
+            >
               Keep chatting
             </button>
           </section>

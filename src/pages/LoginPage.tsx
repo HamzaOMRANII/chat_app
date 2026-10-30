@@ -6,7 +6,7 @@ import { Notice, TextLink } from "../components/Screen";
 import { api, ApiError } from "../lib/api";
 import { deviceInfo } from "../lib/device";
 import { AndroidDownload } from "../components/AndroidDownload";
-import { isNativeApp, } from "../lib/platform";
+import { isNativeApp } from "../lib/platform";
 import type { Challenge } from "../app/types";
 
 type Props = {
@@ -24,7 +24,9 @@ export function LoginPage({ notice, onChallenge, onPending, onSignUp, onAdminRes
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
-    const username = String(form.get("username") ?? "").trim().toLowerCase();
+    const username = String(form.get("username") ?? "")
+      .trim()
+      .toLowerCase();
     setError("");
     setBusy(true);
     try {
@@ -50,10 +52,7 @@ export function LoginPage({ notice, onChallenge, onPending, onSignUp, onAdminRes
         <p className="eyebrow m-0">private · end-to-end encrypted</p>
       </header>
 
-      <form
-        onSubmit={onSubmit}
-        className="flex flex-col gap-4 rounded-card border border-line bg-panel px-5 py-[22px] shadow-[0_24px_60px_rgba(0,0,0,0.45)]"
-      >
+      <form onSubmit={onSubmit} className="flex flex-col gap-4 rounded-card border border-line bg-panel px-5 py-[22px] shadow-[0_24px_60px_rgba(0,0,0,0.45)]">
         <h2 className="m-0 text-2xl font-extrabold tracking-[-0.02em]">Sign in</h2>
         {notice ? <Notice>{notice}</Notice> : null}
         <TextField label="Username or email" name="username" autoComplete="username" autoCapitalize="none" required />

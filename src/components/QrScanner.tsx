@@ -69,7 +69,11 @@ export function QrScanner({ onResult, onClose, onUpload }: { onResult: (text: st
         )}
       </div>
       <div className="px-4 pb-6 pt-3">
-        <button type="button" onClick={onUpload} className="min-h-12 w-full rounded-control border border-line-strong bg-panel text-[14.5px] font-semibold text-ink">
+        <button
+          type="button"
+          onClick={onUpload}
+          className="min-h-12 w-full rounded-control border border-line-strong bg-panel text-[14.5px] font-semibold text-ink"
+        >
           Can't scan? Upload a QR image
         </button>
       </div>

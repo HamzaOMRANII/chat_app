@@ -46,8 +46,7 @@ export const longDuration = (minutes: number) =>
 
 export const modeLabel = (c: { mode: ChatMode; retentionMinutes: number }) => `${c.mode === "auto" ? "AUTO" : "KEEP"} · ${shortDuration(c.retentionMinutes)}`;
 
-export const latestKey = (chat: Chat, userId: string) =>
-  chat.keys.filter((k) => k.userId === userId).sort((a, b) => b.version - a.version)[0] ?? null;
+export const latestKey = (chat: Chat, userId: string) => chat.keys.filter((k) => k.userId === userId).sort((a, b) => b.version - a.version)[0] ?? null;
 
 /** This device's identity, published for the account (the server keeps only the public half). */
 export async function myIdentity(userId: string) {
@@ -89,7 +88,10 @@ export async function prepareDevice(userId: string) {
   await publishIdentity(userId);
   const { chats } = await api<{ chats: Chat[] }>("/api/chats");
   for (const chat of chats) await ensureMyKey(chat, userId).catch(() => {});
-  forgetChatsExcept(userId, chats.map((c) => c.id));
+  forgetChatsExcept(
+    userId,
+    chats.map((c) => c.id),
+  );
 }
 
 /** The other side's latest key, if its signature checks out. */

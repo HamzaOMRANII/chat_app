@@ -19,12 +19,34 @@ const icons = {
   earpiece: <path d="M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM10 6h4" />,
 };
 const Icon = ({ d, size = 22 }: { d: keyof typeof icons; size?: number }) => (
-  <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.9"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
     {icons[d]}
   </svg>
 );
 
-function Control({ icon, label, onClick, tone = "plain", disabled = false }: { icon: keyof typeof icons; label: string; onClick: () => void; tone?: "plain" | "on" | "danger" | "go"; disabled?: boolean }) {
+function Control({
+  icon,
+  label,
+  onClick,
+  tone = "plain",
+  disabled = false,
+}: {
+  icon: keyof typeof icons;
+  label: string;
+  onClick: () => void;
+  tone?: "plain" | "on" | "danger" | "go";
+  disabled?: boolean;
+}) {
   const styles = {
     plain: "border border-white/15 bg-white/10 text-ink",
     on: "border-0 bg-ink text-bg",
@@ -33,7 +55,14 @@ function Control({ icon, label, onClick, tone = "plain", disabled = false }: { i
   }[tone];
   return (
     <span className="flex flex-col items-center gap-1.5">
-      <button type="button" onClick={onClick} disabled={disabled} aria-label={label} title={label} className={`grid size-[58px] place-items-center rounded-full disabled:opacity-40 ${styles}`}>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        aria-label={label}
+        title={label}
+        className={`grid size-[58px] place-items-center rounded-full disabled:opacity-40 ${styles}`}
+      >
         <Icon d={icon} size={24} />
       </button>
       <span className="text-[11.5px] text-ink-soft">{label}</span>
@@ -54,7 +83,19 @@ function useWide() {
   return wide;
 }
 
-function MediaView({ stream, muted, mirror, className, sinkId }: { stream: MediaStream | null; muted?: boolean; mirror?: boolean; className: string; sinkId?: string | null }) {
+function MediaView({
+  stream,
+  muted,
+  mirror,
+  className,
+  sinkId,
+}: {
+  stream: MediaStream | null;
+  muted?: boolean;
+  mirror?: boolean;
+  className: string;
+  sinkId?: string | null;
+}) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -151,7 +192,8 @@ const OUTPUT_NAME: Record<Output["kind"], string> = {
   hearing_aid: "Hearing aid",
   other: "Audio device",
 };
-const outputLabel = (o: Output) => (o.kind === "earpiece" || o.kind === "speaker" ? OUTPUT_NAME[o.kind] : o.name ? `${o.name} (${OUTPUT_NAME[o.kind].toLowerCase()})` : OUTPUT_NAME[o.kind]);
+const outputLabel = (o: Output) =>
+  o.kind === "earpiece" || o.kind === "speaker" ? OUTPUT_NAME[o.kind] : o.name ? `${o.name} (${OUTPUT_NAME[o.kind].toLowerCase()})` : OUTPUT_NAME[o.kind];
 
 /** The other person's sound as it arrives: shows whether their voice reaches this device at all. */
 function IncomingLevel({ active }: { active: boolean }) {
@@ -177,11 +219,19 @@ function DevicePanel({ s, onClose, side }: { s: CallState; onClose: () => void; 
     void listDevices();
     void calls.loadOutputs();
   }, []);
-  const current = (kind: "audio" | "video") => s.local?.getTracks().find((t) => t.kind === kind)?.getSettings().deviceId ?? "";
+  const current = (kind: "audio" | "video") =>
+    s.local
+      ?.getTracks()
+      .find((t) => t.kind === kind)
+      ?.getSettings().deviceId ?? "";
   const pick = (label: string, list: MediaDeviceInfo[], value: string, onChange: (id: string) => void, empty: string) => (
     <label className="flex flex-col gap-1.5">
       <span className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-dim">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="min-h-[42px] rounded-xl border border-line-strong bg-sunken px-3 text-[13.5px] text-ink outline-none focus:border-accent">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="min-h-[42px] rounded-xl border border-line-strong bg-sunken px-3 text-[13.5px] text-ink outline-none focus:border-accent"
+      >
         {list.length ? null : <option value="">{empty}</option>}
         {list.map((d, i) => (
           <option key={d.deviceId || i} value={d.deviceId}>
@@ -239,7 +289,11 @@ function DevicePanel({ s, onClose, side }: { s: CallState; onClose: () => void; 
           <p className="m-0 text-[12.5px] text-faint">This browser plays calls on the computer's default output.</p>
         )}
         <IncomingLevel active />
-        <button type="button" onClick={() => void test()} className="min-h-10 self-start rounded-xl border border-line-strong bg-transparent px-3.5 text-[13px] font-semibold text-ink">
+        <button
+          type="button"
+          onClick={() => void test()}
+          className="min-h-10 self-start rounded-xl border border-line-strong bg-transparent px-3.5 text-[13px] font-semibold text-ink"
+        >
           Play a test sound
         </button>
         {tone ? <p className="m-0 text-[12px] text-dim">{tone}</p> : null}
@@ -256,14 +310,28 @@ function DevicePanel({ s, onClose, side }: { s: CallState; onClose: () => void; 
 
       {s.kind === "video" ? pick("camera", s.devices.cams, s.camId ?? current("video"), (id) => void calls.selectCamera(id), "Camera") : null}
       <p className="m-0 text-xs leading-normal text-faint">
-        "Their voice" moves when sound arrives from {s.peer?.username ?? "them"}; the green bar when your microphone picks you up. Changes apply at once, without hanging up.
+        "Their voice" moves when sound arrives from {s.peer?.username ?? "them"}; the green bar when your microphone picks you up. Changes apply at once,
+        without hanging up.
       </p>
     </>
   );
-  if (side) return <aside aria-label="Sound and microphone" className="flex w-[340px] shrink-0 flex-col gap-4 overflow-y-auto rounded-[20px] border border-line-strong bg-panel p-5">{body}</aside>;
+  if (side)
+    return (
+      <aside
+        aria-label="Sound and microphone"
+        className="flex w-[340px] shrink-0 flex-col gap-4 overflow-y-auto rounded-[20px] border border-line-strong bg-panel p-5"
+      >
+        {body}
+      </aside>
+    );
   return (
     <div className="absolute inset-0 z-10 flex flex-col justify-end bg-black/50" onClick={onClose}>
-      <section role="dialog" aria-label="Sound and microphone" onClick={(e) => e.stopPropagation()} className="flex max-h-[88dvh] flex-col gap-4 overflow-y-auto rounded-t-[26px] border-t border-line-strong bg-panel px-[18px] pb-7 pt-4">
+      <section
+        role="dialog"
+        aria-label="Sound and microphone"
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[88dvh] flex-col gap-4 overflow-y-auto rounded-t-[26px] border-t border-line-strong bg-panel px-[18px] pb-7 pt-4"
+      >
         {body}
         <button type="button" onClick={onClose} className="min-h-[50px] shrink-0 rounded-[14px] bg-brand text-[15px] font-bold text-white">
           Done
@@ -295,7 +363,10 @@ export function CallScreen() {
   const video = s.kind === "video";
   const remoteHasVideo = Boolean(s.remote?.getVideoTracks().some((t) => t.readyState === "live"));
   const chip = s.code ? (
-    <span title="Compare these numbers aloud: the same on both devices means nobody is in between" className="inline-flex items-center gap-1.5 rounded-full border border-online/45 px-2.5 py-1 font-mono text-[10.5px] text-ok">
+    <span
+      title="Compare these numbers aloud: the same on both devices means nobody is in between"
+      className="inline-flex items-center gap-1.5 rounded-full border border-online/45 px-2.5 py-1 font-mono text-[10.5px] text-ok"
+    >
       <Icon d="lock" size={12} />
       {s.verified === false ? "not verified" : "encrypted"} · {s.code}
     </span>
@@ -306,8 +377,12 @@ export function CallScreen() {
       <div role="dialog" aria-label="Call" className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-5">
         <section className="flex w-full max-w-[400px] flex-col items-center gap-3.5 rounded-[22px] border border-line-strong bg-panel px-6 py-7 text-center">
           <Avatar username={name} size={80} />
-          <p className="m-0 font-mono text-[11px] uppercase tracking-[0.14em] text-keep">{/isn't taking calls/.test(s.note) ? "not taking calls" : "can't call now"}</p>
-          <h2 className="m-0 text-xl font-extrabold">{/isn't taking calls/.test(s.note) ? `${name} isn't taking calls right now` : `You can't reach ${name} now`}</h2>
+          <p className="m-0 font-mono text-[11px] uppercase tracking-[0.14em] text-keep">
+            {/isn't taking calls/.test(s.note) ? "not taking calls" : "can't call now"}
+          </p>
+          <h2 className="m-0 text-xl font-extrabold">
+            {/isn't taking calls/.test(s.note) ? `${name} isn't taking calls right now` : `You can't reach ${name} now`}
+          </h2>
           <p className="m-0 max-w-[34ch] text-sm leading-relaxed text-dim">{s.note.replace(/^[^.]*taking calls right now\. /, "")}</p>
           <button type="button" onClick={() => calls.dismiss()} className="min-h-12 rounded-[14px] bg-brand px-6 text-[14.5px] font-bold text-white">
             Write a message
@@ -320,7 +395,11 @@ export function CallScreen() {
   if (s.phase === "incoming") {
     const card = (
       <>
-        <p className="m-0 font-mono text-[11px] uppercase tracking-[0.16em] text-dim">{"// incoming "}{s.group ? "group " : ""}{s.kind} call</p>
+        <p className="m-0 font-mono text-[11px] uppercase tracking-[0.16em] text-dim">
+          {"// incoming "}
+          {s.group ? "group " : ""}
+          {s.kind} call
+        </p>
         {s.group ? <GroupIcon size={wide ? 88 : 112} /> : <Avatar username={name} size={wide ? 88 : 112} />}
         <h1 className="m-0 text-[26px] font-extrabold">{s.group ? s.group.name : name}</h1>
         {s.group ? <p className="m-0 text-sm text-ink-soft">started by {name}</p> : null}
@@ -332,7 +411,11 @@ export function CallScreen() {
       <div className={`flex w-full ${wide ? "gap-2.5" : "justify-around"}`}>
         <Control icon="hang" label="Decline" tone="danger" onClick={() => calls.decline()} />
         <Control icon="phone" label="Voice only" onClick={() => void calls.accept("voice")} />
-        {video ? <Control icon="video" label="Video" tone="go" onClick={() => void calls.accept("video")} /> : <Control icon="phone" label="Answer" tone="go" onClick={() => void calls.accept("voice")} />}
+        {video ? (
+          <Control icon="video" label="Video" tone="go" onClick={() => void calls.accept("video")} />
+        ) : (
+          <Control icon="phone" label="Answer" tone="go" onClick={() => void calls.accept("voice")} />
+        )}
       </div>
     );
     return wide ? (
@@ -345,7 +428,9 @@ export function CallScreen() {
       </div>
     ) : (
       <div role="dialog" aria-label={`Incoming call from ${name}`} className="fixed inset-0 z-50 flex flex-col bg-[#07080C]">
-        <div className="flex grow flex-col items-center justify-center gap-4 bg-[radial-gradient(circle_at_50%_35%,rgba(126,34,52,0.35),transparent_60%)] px-6 text-center">{card}</div>
+        <div className="flex grow flex-col items-center justify-center gap-4 bg-[radial-gradient(circle_at_50%_35%,rgba(126,34,52,0.35),transparent_60%)] px-6 text-center">
+          {card}
+        </div>
         <div className="px-6 pb-11 pt-5">{buttons}</div>
       </div>
     );
@@ -354,11 +439,31 @@ export function CallScreen() {
   if (s.group) return <GroupCall s={s} wide={wide} now={now} devices={devices} setDevices={setDevices} />;
 
   const status =
-    s.phase === "calling" ? "ringing…" : s.phase === "connecting" ? "connecting…" : s.phase === "ended" ? s.note : `${clock(now - (s.startedAt ?? now))}${s.relayed ? " · through the relay" : " · direct"}`;
+    s.phase === "calling"
+      ? "ringing…"
+      : s.phase === "connecting"
+        ? "connecting…"
+        : s.phase === "ended"
+          ? s.note
+          : `${clock(now - (s.startedAt ?? now))}${s.relayed ? " · through the relay" : " · direct"}`;
   const controls = (
     <div className={`flex ${wide ? "gap-3 rounded-full border border-white/10 bg-[rgba(10,11,16,0.75)] px-4 py-3" : "justify-between"}`}>
-      <Control icon={s.muted ? "micOff" : "mic"} label={s.muted ? "Unmute" : "Mute"} tone={s.muted ? "on" : "plain"} onClick={() => calls.toggleMute()} disabled={s.phase === "ended"} />
-      {video ? <Control icon={s.cameraOn ? "video" : "camOff"} label={s.cameraOn ? "Camera" : "Camera off"} tone={s.cameraOn ? "plain" : "on"} onClick={() => calls.toggleCamera()} disabled={s.phase === "ended"} /> : null}
+      <Control
+        icon={s.muted ? "micOff" : "mic"}
+        label={s.muted ? "Unmute" : "Mute"}
+        tone={s.muted ? "on" : "plain"}
+        onClick={() => calls.toggleMute()}
+        disabled={s.phase === "ended"}
+      />
+      {video ? (
+        <Control
+          icon={s.cameraOn ? "video" : "camOff"}
+          label={s.cameraOn ? "Camera" : "Camera off"}
+          tone={s.cameraOn ? "plain" : "on"}
+          onClick={() => calls.toggleCamera()}
+          disabled={s.phase === "ended"}
+        />
+      ) : null}
       {video && !wide ? <Control icon="flip" label="Flip" onClick={() => void calls.flip()} disabled={s.phase === "ended"} /> : null}
       {isNativeApp ? (
         <Control
@@ -375,7 +480,9 @@ export function CallScreen() {
   );
   return (
     <div role="dialog" aria-label={`Call with ${name}`} className="fixed inset-0 z-50 flex bg-[#07080C] text-ink">
-      <div className={`relative flex grow flex-col overflow-hidden ${wide ? "m-4 rounded-3xl" : ""} bg-gradient-to-br from-[#22303F] via-[#3B2A44] to-[#2A1A20]`}>
+      <div
+        className={`relative flex grow flex-col overflow-hidden ${wide ? "m-4 rounded-3xl" : ""} bg-gradient-to-br from-[#22303F] via-[#3B2A44] to-[#2A1A20]`}
+      >
         {video && remoteHasVideo ? <MediaView stream={s.remote} muted className="absolute inset-0 size-full object-cover" /> : null}
         {!video || !remoteHasVideo ? (
           <div className="absolute left-1/2 top-[42%] -translate-x-1/2 -translate-y-1/2 opacity-80">
@@ -393,15 +500,21 @@ export function CallScreen() {
           {chip}
         </div>
         {video && s.local ? (
-          <div className={`absolute overflow-hidden rounded-2xl border-2 border-white/25 bg-[#1F3A35] ${wide ? "bottom-[110px] right-5 h-[150px] w-[240px]" : "right-4 top-[86px] h-[150px] w-[104px]"}`}>
+          <div
+            className={`absolute overflow-hidden rounded-2xl border-2 border-white/25 bg-[#1F3A35] ${wide ? "bottom-[110px] right-5 h-[150px] w-[240px]" : "right-4 top-[86px] h-[150px] w-[104px]"}`}
+          >
             {s.cameraOn ? <MediaView stream={s.local} muted mirror={s.facing === "user"} className="size-full object-cover" /> : null}
             <span className="absolute bottom-1.5 left-2 font-mono text-[10px]">you{s.muted ? " · muted" : ""}</span>
           </div>
         ) : null}
         <div className="grow" />
-        <div className={`relative flex flex-col gap-3 ${wide ? "items-center pb-6" : "bg-gradient-to-b from-transparent to-black/60 px-3.5 pb-[34px] pt-[18px]"}`}>
+        <div
+          className={`relative flex flex-col gap-3 ${wide ? "items-center pb-6" : "bg-gradient-to-b from-transparent to-black/60 px-3.5 pb-[34px] pt-[18px]"}`}
+        >
           {controls}
-          {s.muted && s.phase !== "ended" ? <p className="m-0 self-center font-mono text-[10.5px] text-ink-soft">you're muted · {name} can't hear you</p> : null}
+          {s.muted && s.phase !== "ended" ? (
+            <p className="m-0 self-center font-mono text-[10.5px] text-ink-soft">you're muted · {name} can't hear you</p>
+          ) : null}
         </div>
         {devices && !wide ? <DevicePanel s={s} side={false} onClose={() => setDevices(false)} /> : null}
       </div>
@@ -417,7 +530,16 @@ export function CallScreen() {
 function GroupIcon({ size }: { size: number }) {
   return (
     <span aria-hidden="true" className="grid place-items-center bg-[#1F2A44] text-auto" style={{ width: size, height: size, borderRadius: size * 0.32 }}>
-      <svg viewBox="0 0 24 24" width={size * 0.48} height={size * 0.48} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <svg
+        viewBox="0 0 24 24"
+        width={size * 0.48}
+        height={size * 0.48}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         <circle cx="9" cy="8" r="3.2" />
         <path d="M3 20a6 6 0 0 1 12 0" />
         <circle cx="17" cy="9" r="2.6" />
@@ -428,10 +550,29 @@ function GroupIcon({ size }: { size: number }) {
 }
 
 /** A group call: a tile per person (their video or initials), everyone can leave, only the starter ends it for all. */
-function GroupCall({ s, wide, now, devices, setDevices }: { s: CallState; wide: boolean; now: number; devices: boolean; setDevices: (fn: (d: boolean) => boolean) => void }) {
+function GroupCall({
+  s,
+  wide,
+  now,
+  devices,
+  setDevices,
+}: {
+  s: CallState;
+  wide: boolean;
+  now: number;
+  devices: boolean;
+  setDevices: (fn: (d: boolean) => boolean) => void;
+}) {
   const video = s.kind === "video";
   const inCall = s.members.length + 1;
-  const status = s.phase === "calling" ? "ringing the members…" : s.phase === "connecting" ? "joining…" : s.phase === "ended" ? s.note : `${clock(now - (s.startedAt ?? now))} · ${inCall} in the call`;
+  const status =
+    s.phase === "calling"
+      ? "ringing the members…"
+      : s.phase === "connecting"
+        ? "joining…"
+        : s.phase === "ended"
+          ? s.note
+          : `${clock(now - (s.startedAt ?? now))} · ${inCall} in the call`;
   const tile = "relative grid min-h-0 place-items-center overflow-hidden rounded-2xl bg-gradient-to-br from-[#2A3A55] to-[#0D0E14]";
   return (
     <div role="dialog" aria-label={`Group call in ${s.group!.name}`} className="fixed inset-0 z-50 flex bg-[#07080C] text-ink">
@@ -445,14 +586,22 @@ function GroupCall({ s, wide, now, devices, setDevices }: { s: CallState; wide: 
         </div>
         <div className={`grid min-h-0 grow auto-rows-fr gap-2 px-3 ${inCall > 4 ? "grid-cols-3" : "grid-cols-2"}`}>
           <div className={tile}>
-            {video && s.cameraOn && s.local ? <MediaView stream={s.local} muted mirror={s.facing === "user"} className="absolute inset-0 size-full object-cover" /> : <Avatar username="you" size={64} />}
+            {video && s.cameraOn && s.local ? (
+              <MediaView stream={s.local} muted mirror={s.facing === "user"} className="absolute inset-0 size-full object-cover" />
+            ) : (
+              <Avatar username="you" size={64} />
+            )}
             <span className="absolute bottom-2 left-2.5 font-mono text-[10.5px] [text-shadow:0_1px_2px_#000]">you{s.muted ? " · muted" : ""}</span>
           </div>
           {s.members.map((m) => {
             const hasVideo = Boolean(m.stream?.getVideoTracks().some((t) => t.readyState === "live"));
             return (
               <div key={m.id} className={`${tile} ${m.connected ? "" : "opacity-60"}`}>
-                {video && hasVideo ? <MediaView stream={m.stream} muted className="absolute inset-0 size-full object-cover" /> : <Avatar username={m.username} size={64} />}
+                {video && hasVideo ? (
+                  <MediaView stream={m.stream} muted className="absolute inset-0 size-full object-cover" />
+                ) : (
+                  <Avatar username={m.username} size={64} />
+                )}
                 <RemoteAudio key={`${s.audioEpoch}:${m.id}`} stream={m.stream} sinkId={s.speakerId} />
                 <span className="absolute bottom-2 left-2.5 font-mono text-[10.5px] [text-shadow:0_1px_2px_#000]">
                   {m.username}
@@ -464,11 +613,30 @@ function GroupCall({ s, wide, now, devices, setDevices }: { s: CallState; wide: 
         </div>
         <div className="flex flex-col gap-3 px-3.5 pb-[30px] pt-4">
           <div className="flex justify-between">
-            <Control icon={s.muted ? "micOff" : "mic"} label={s.muted ? "Unmute" : "Mute"} tone={s.muted ? "on" : "plain"} onClick={() => calls.toggleMute()} disabled={s.phase === "ended"} />
-            {video ? <Control icon={s.cameraOn ? "video" : "camOff"} label={s.cameraOn ? "Camera" : "Camera off"} tone={s.cameraOn ? "plain" : "on"} onClick={() => calls.toggleCamera()} disabled={s.phase === "ended"} /> : null}
+            <Control
+              icon={s.muted ? "micOff" : "mic"}
+              label={s.muted ? "Unmute" : "Mute"}
+              tone={s.muted ? "on" : "plain"}
+              onClick={() => calls.toggleMute()}
+              disabled={s.phase === "ended"}
+            />
+            {video ? (
+              <Control
+                icon={s.cameraOn ? "video" : "camOff"}
+                label={s.cameraOn ? "Camera" : "Camera off"}
+                tone={s.cameraOn ? "plain" : "on"}
+                onClick={() => calls.toggleCamera()}
+                disabled={s.phase === "ended"}
+              />
+            ) : null}
             {video && !wide ? <Control icon="flip" label="Flip" onClick={() => void calls.flip()} disabled={s.phase === "ended"} /> : null}
             <Control icon="gear" label="Sound" onClick={() => setDevices((d) => !d)} disabled={s.phase === "ended"} />
-            <Control icon="hang" label={s.phase === "ended" ? "Close" : "Leave"} tone="danger" onClick={() => (s.phase === "ended" ? calls.dismiss() : calls.hangUp(false))} />
+            <Control
+              icon="hang"
+              label={s.phase === "ended" ? "Close" : "Leave"}
+              tone="danger"
+              onClick={() => (s.phase === "ended" ? calls.dismiss() : calls.hangUp(false))}
+            />
           </div>
           {s.starter && s.phase !== "ended" ? (
             <button
@@ -480,7 +648,9 @@ function GroupCall({ s, wide, now, devices, setDevices }: { s: CallState; wide: 
             </button>
           ) : null}
           {s.phase !== "ended" ? (
-            <p className="m-0 self-center font-mono text-[10.5px] text-dim">{s.starter ? "you started this call: you can end it for everyone" : "only the one who started the call can end it for everyone"}</p>
+            <p className="m-0 self-center font-mono text-[10.5px] text-dim">
+              {s.starter ? "you started this call: you can end it for everyone" : "only the one who started the call can end it for everyone"}
+            </p>
           ) : null}
         </div>
         {devices && !wide ? <DevicePanel s={s} side={false} onClose={() => setDevices(() => false)} /> : null}

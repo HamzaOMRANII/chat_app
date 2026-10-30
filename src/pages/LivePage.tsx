@@ -15,7 +15,18 @@ const DROP_MS = 60_000;
 
 type Line = { id: number; mine: boolean; text: string; fileId?: string };
 /** A file in a live chat: offered, then sent straight to the other phone in pieces. Kept in memory only. */
-type LiveFile = { id: string; name: string; mime: string; size: number; mine: boolean; state: "offered" | "moving" | "done" | "refused" | "failed"; done: number; url?: string; blob?: Blob; view?: boolean };
+type LiveFile = {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  mine: boolean;
+  state: "offered" | "moving" | "done" | "refused" | "failed";
+  done: number;
+  url?: string;
+  blob?: Blob;
+  view?: boolean;
+};
 /** What travels in a live chat: the whole current draft on every keystroke, or a finished line. `n` keeps them in order. */
 type LivePlain =
   | { t: "draft" | "line"; text: string; n: number }
@@ -100,7 +111,10 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
       over.current = true;
       forgetLive(sessionId);
       const peer = peerRef.current;
-      onClosedRef.current(`Live chat with ${peer} ended`, byMe ? "Everything was wiped on both phones." : (ENDED[reason] ?? (() => "Everything was wiped on both phones."))(peer));
+      onClosedRef.current(
+        `Live chat with ${peer} ended`,
+        byMe ? "Everything was wiped on both phones." : (ENDED[reason] ?? (() => "Everything was wiped on both phones."))(peer),
+      );
     },
     [sessionId],
   );
@@ -147,7 +161,15 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
           const s = sessionRef.current;
           const secret = liveSecret(sessionId);
           if (p.sessionId !== sessionId || !s?.with || !secret || !keys.current) return;
-          const plain = (await openLive({ secret, sessionId, senderId: s.with.id, myKey: keys.current.mine, theirKey: keys.current.theirs, nonce: p.nonce, ct: p.ct })) as LivePlain | null;
+          const plain = (await openLive({
+            secret,
+            sessionId,
+            senderId: s.with.id,
+            myKey: keys.current.mine,
+            theirKey: keys.current.theirs,
+            nonce: p.nonce,
+            ct: p.ct,
+          })) as LivePlain | null;
           if (!plain || typeof plain.n !== "number" || plain.n <= received.current) return;
           received.current = plain.n;
           receivedPlain(plain);
@@ -203,7 +225,16 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
         return;
       case "file-offer": {
         if (typeof plain.id !== "string" || !(plain.size > 0) || plain.size > MAX_LIVE_FILE) return;
-        const file: LiveFile = { id: plain.id, name: String(plain.name).slice(0, 200), mime: String(plain.mime || "application/octet-stream"), size: plain.size, mine: false, state: "offered", done: 0, view: plain.view === true };
+        const file: LiveFile = {
+          id: plain.id,
+          name: String(plain.name).slice(0, 200),
+          mime: String(plain.mime || "application/octet-stream"),
+          size: plain.size,
+          mine: false,
+          state: "offered",
+          done: 0,
+          view: plain.view === true,
+        };
         setLiveFiles((map) => new Map(map).set(file.id, file));
         setLines((list) => [...list, { id: ++lineId.current, mine: false, text: "", fileId: file.id }]);
         return;
@@ -252,7 +283,14 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
       const s = sessionRef.current;
       const secret = liveSecret(sessionId);
       if (!s?.with || !secret || !keys.current || over.current) return;
-      const sealed = await sealLive({ secret, sessionId, userId, myKey: keys.current.mine, theirKey: keys.current.theirs, plain: { ...plain, n: ++sent.current } as LivePlain as { t: string } });
+      const sealed = await sealLive({
+        secret,
+        sessionId,
+        userId,
+        myKey: keys.current.mine,
+        theirKey: keys.current.theirs,
+        plain: { ...plain, n: ++sent.current } as LivePlain as { t: string },
+      });
       live.send("live", { sessionId, ...sealed });
     });
     sendQueue.current = next.catch(() => {});
@@ -366,8 +404,23 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
   return (
     <main className="mx-auto flex h-dvh w-full max-w-[640px] flex-col">
       <header className="flex items-center gap-2 border-b border-line px-3 pb-2.5 pt-3.5">
-        <button type="button" onClick={leave} aria-label="Leave and wipe" className="grid size-11 shrink-0 place-items-center rounded-field bg-transparent text-ink">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <button
+          type="button"
+          onClick={leave}
+          aria-label="Leave and wipe"
+          className="grid size-11 shrink-0 place-items-center rounded-field bg-transparent text-ink"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
@@ -376,7 +429,9 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
           {session ? (
             <div className="flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-live-line px-2 py-px font-mono text-[10.5px] font-bold text-live">
-                {session.status === "active" ? <span className={`size-1.5 rounded-full ${waiting ? "bg-[#4E8A93]" : "bg-live shadow-[0_0_0_4px_rgba(127,220,232,0.2)]"}`} /> : null}
+                {session.status === "active" ? (
+                  <span className={`size-1.5 rounded-full ${waiting ? "bg-[#4E8A93]" : "bg-live shadow-[0_0_0_4px_rgba(127,220,232,0.2)]"}`} />
+                ) : null}
                 LIVE{session.status === "active" && session.startedAt ? ` · ${clock(now - new Date(session.startedAt).getTime())}` : ""}
               </span>
               {session.status === "active" ? (
@@ -406,8 +461,8 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
           {peer ? <Avatar username={peer.username} online={peer.online} size={76} /> : null}
           <h2 className="m-0 text-[22px] font-extrabold">{session.createdByMe ? `Waiting for ${peerName}` : `${peerName} wants to chat live`}</h2>
           <p className="m-0 max-w-[38ch] text-[14px] leading-relaxed text-dim">
-            You'll see each other type, letter by letter. <strong className="text-live">Nothing is stored</strong>: everything is wiped when either of you leaves, or after 1 minute
-            without connection.
+            You'll see each other type, letter by letter. <strong className="text-live">Nothing is stored</strong>: everything is wiped when either of you
+            leaves, or after 1 minute without connection.
           </p>
           <div className="flex w-full max-w-[320px] flex-col items-center gap-2">
             <p className="m-0 font-mono text-xs text-dim">
@@ -421,15 +476,27 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
           </div>
           {error ? <Notice tone="error">{error}</Notice> : null}
           {session.createdByMe ? (
-            <button type="button" onClick={() => void answer("leave")} className="min-h-12 rounded-control border border-line-strong bg-transparent px-5 text-[14.5px] font-semibold text-ink">
+            <button
+              type="button"
+              onClick={() => void answer("leave")}
+              className="min-h-12 rounded-control border border-line-strong bg-transparent px-5 text-[14.5px] font-semibold text-ink"
+            >
               Cancel invitation
             </button>
           ) : (
             <div className="flex w-full max-w-[320px] gap-2">
-              <button type="button" onClick={() => void answer("decline")} className="min-h-[50px] flex-1 rounded-[14px] border border-line-strong bg-transparent text-[14.5px] font-semibold text-ink">
+              <button
+                type="button"
+                onClick={() => void answer("decline")}
+                className="min-h-[50px] flex-1 rounded-[14px] border border-line-strong bg-transparent text-[14.5px] font-semibold text-ink"
+              >
                 Decline
               </button>
-              <button type="button" onClick={() => void answer("accept")} className="min-h-[50px] flex-1 rounded-[14px] bg-brand text-[14.5px] font-bold text-white hover:bg-brand-hover">
+              <button
+                type="button"
+                onClick={() => void answer("accept")}
+                className="min-h-[50px] flex-1 rounded-[14px] bg-brand text-[14.5px] font-bold text-white hover:bg-brand-hover"
+              >
                 Go live
               </button>
             </div>
@@ -438,7 +505,18 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
       ) : (
         <>
           <p className="m-0 flex items-center gap-2.5 border-b border-line bg-panel px-[18px] py-2 font-mono text-[11px] text-dim">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-live" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              width="14"
+              height="14"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0 text-live"
+              aria-hidden="true"
+            >
               <rect x="4" y="11" width="16" height="10" rx="2" />
               <path d="M8 11V7a4 4 0 0 1 8 0v4" />
             </svg>
@@ -447,7 +525,8 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
           {waiting ? (
             <div role="status" className="flex flex-col gap-2 border-b border-[#5C4A22] bg-keep/[0.08] px-[18px] py-3">
               <p className="m-0 text-[13.5px] leading-snug text-[#F3E3BF]">
-                {peerName}'s connection dropped. The chat is wiped in <strong>{Math.max(0, Math.ceil((waiting.deadline - now) / 1000))} s</strong> unless they come back.
+                {peerName}'s connection dropped. The chat is wiped in <strong>{Math.max(0, Math.ceil((waiting.deadline - now) / 1000))} s</strong> unless they
+                come back.
               </p>
               <div className="h-1 overflow-hidden rounded-full bg-[#3A3220]" aria-hidden="true">
                 <div className="h-full bg-keep" style={{ width: `${Math.max(0, Math.min(100, ((waiting.deadline - now) / DROP_MS) * 100))}%` }} />
@@ -458,20 +537,25 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
           <div className={`flex grow flex-col gap-2 overflow-y-auto p-4 ${waiting ? "opacity-55" : ""}`} aria-live="polite">
             <div className="grow" />
             {session.startedAt ? (
-              <p className="m-0 self-center font-mono text-[11px] text-faint">{"// live since "}{new Date(session.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
+              <p className="m-0 self-center font-mono text-[11px] text-faint">
+                {"// live since "}
+                {new Date(session.startedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </p>
             ) : null}
             {lines.map((l) =>
               l.fileId ? (
                 <LiveFileCard key={l.id} file={liveFiles.get(l.fileId)} peerName={peerName} canSave={Boolean(rules?.export)} onAnswer={answerFile} />
               ) : (
-              <p
-                key={l.id}
-                className={`m-0 max-w-[80%] whitespace-pre-wrap break-words px-3.5 py-2.5 text-[14.5px] leading-snug ${
-                  l.mine ? "self-end rounded-[16px_16px_4px_16px] bg-brand text-white" : "self-start rounded-[16px_16px_16px_4px] border border-line bg-raised"
-                }`}
-              >
-                {l.text}
-              </p>
+                <p
+                  key={l.id}
+                  className={`m-0 max-w-[80%] whitespace-pre-wrap break-words px-3.5 py-2.5 text-[14.5px] leading-snug ${
+                    l.mine
+                      ? "self-end rounded-[16px_16px_4px_16px] bg-brand text-white"
+                      : "self-start rounded-[16px_16px_16px_4px] border border-line bg-raised"
+                  }`}
+                >
+                  {l.text}
+                </p>
               ),
             )}
             {theirDraft ? (
@@ -522,7 +606,17 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
                 title={rules?.files === "none" ? "Files aren't allowed with this contact" : "Send a file straight to them"}
                 className="grid size-11 shrink-0 place-items-center rounded-field border border-line-strong bg-panel text-ink disabled:border-line disabled:text-[#4A4F63]"
               >
-                <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="19"
+                  height="19"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
                   <path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
                 </svg>
               </button>
@@ -555,7 +649,17 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
                 disabled={!draft.trim() || Boolean(waiting)}
                 className="grid size-[46px] shrink-0 place-items-center rounded-[14px] bg-brand text-white disabled:bg-[#3A1A22] disabled:text-[#8A6A72]"
               >
-                <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="19"
+                  height="19"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
                   <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg>
               </button>
@@ -568,25 +672,41 @@ export function LivePage({ sessionId, userId, onBack, onClosed, onAuthError }: P
 }
 
 /** A file in a live chat: the offer (Receive / Refuse), its progress, then the file itself. */
-function LiveFileCard({ file, peerName, canSave, onAnswer }: { file?: LiveFile; peerName: string; canSave: boolean; onAnswer: (id: string, ok: boolean) => void }) {
+function LiveFileCard({
+  file,
+  peerName,
+  canSave,
+  onAnswer,
+}: {
+  file?: LiveFile;
+  peerName: string;
+  canSave: boolean;
+  onAnswer: (id: string, ok: boolean) => void;
+}) {
   if (!file) return null;
   const pct = Math.round((file.done / file.size) * 100);
   const media = file.mime.startsWith("image/") ? "image" : file.mime.startsWith("video/") ? "video" : null;
-  const shape = file.mine ? "self-end rounded-[16px_16px_4px_16px] border-accent bg-accent/[0.08]" : "self-start rounded-[16px_16px_16px_4px] border-live-line bg-live/[0.06]";
+  const shape = file.mine
+    ? "self-end rounded-[16px_16px_4px_16px] border-accent bg-accent/[0.08]"
+    : "self-start rounded-[16px_16px_16px_4px] border-live-line bg-live/[0.06]";
   const size = `${(file.size / 1024 / 1024).toFixed(file.size < 10 * 1024 * 1024 ? 1 : 0)} MB`;
   return (
     <div data-view-only={file.view ? "" : undefined} className={`relative flex w-[80%] max-w-[340px] flex-col gap-2.5 border border-dashed p-3 ${shape}`}>
-      {file.state === "done" && file.url && media === "image" ? <span className="relative">
+      {file.state === "done" && file.url && media === "image" ? (
+        <span className="relative">
           <img src={file.url} alt={file.name} draggable={false} className="max-h-[260px] rounded-xl object-contain" />
           {file.view ? <span className="absolute inset-0" aria-hidden="true" /> : null}
-        </span> : null}
-      {file.state === "done" && file.url && media === "video" ? <video
+        </span>
+      ) : null}
+      {file.state === "done" && file.url && media === "video" ? (
+        <video
           src={file.url}
           controls
           controlsList={file.view ? "nodownload" : undefined}
           disablePictureInPicture={file.view}
           className="max-h-[260px] rounded-xl"
-        /> : null}
+        />
+      ) : null}
       <span className="flex flex-col gap-0.5">
         <span className="break-all text-[13.5px] font-bold">
           {file.mine ? "" : `${peerName} sends `}
@@ -616,7 +736,11 @@ function LiveFileCard({ file, peerName, canSave, onAnswer }: { file?: LiveFile; 
       ) : null}
       {file.state === "offered" && !file.mine ? (
         <span className="flex gap-2">
-          <button type="button" onClick={() => onAnswer(file.id, false)} className="min-h-[42px] flex-1 rounded-xl border border-line-strong bg-transparent text-[13.5px] font-semibold text-ink">
+          <button
+            type="button"
+            onClick={() => onAnswer(file.id, false)}
+            className="min-h-[42px] flex-1 rounded-xl border border-line-strong bg-transparent text-[13.5px] font-semibold text-ink"
+          >
             Refuse
           </button>
           <button type="button" onClick={() => onAnswer(file.id, true)} className="min-h-[42px] flex-1 rounded-xl bg-brand text-[13.5px] font-bold text-white">
@@ -634,7 +758,9 @@ function LiveFileCard({ file, peerName, canSave, onAnswer }: { file?: LiveFile; 
             Save a copy
           </button>
         ) : (
-          <span className="text-[11.5px] text-faint">{file.view ? `View only: ${peerName} doesn't allow saving it.` : "Saving isn't allowed with this contact."}</span>
+          <span className="text-[11.5px] text-faint">
+            {file.view ? `View only: ${peerName} doesn't allow saving it.` : "Saving isn't allowed with this contact."}
+          </span>
         )
       ) : null}
     </div>

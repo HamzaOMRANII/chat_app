@@ -135,7 +135,15 @@ const associated = (chatId: string, senderId: string, senderVersion: number, rec
   sodium.from_string(`hchat-msg|${chatId}|${senderId}|${senderVersion}|${recipientVersion}`);
 
 /** A file sent with a message: what's needed to fetch, open and show it. Only inside the encrypted message. */
-export type FileRef = { id: string; name: string; mime: string; size: number; key: string; chunks: number; /** Set by the sender: the other side may only look at it, not save it. */ view?: boolean };
+export type FileRef = {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  key: string;
+  chunks: number /** Set by the sender: the other side may only look at it, not save it. */;
+  view?: boolean;
+};
 export type Plain = { t: string; f?: FileRef };
 
 export async function encryptMessage(opts: { userId: string; chatId: string; myKey: PublishedKey; theirKey: PublishedKey; plain: Plain }) {
@@ -210,12 +218,26 @@ export async function sealLive(opts: { secret: string; sessionId: string; userId
   await lib();
   const key = sharedKey(opts.secret, opts.myKey, opts.theirKey, opts.sessionId);
   const nonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
-  const cipher = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(sodium.from_string(JSON.stringify(opts.plain)), liveAssociated(opts.sessionId, opts.userId), null, nonce, key);
+  const cipher = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
+    sodium.from_string(JSON.stringify(opts.plain)),
+    liveAssociated(opts.sessionId, opts.userId),
+    null,
+    nonce,
+    key,
+  );
   return { nonce: enc(nonce), ct: enc(cipher) };
 }
 
 /** Opens what the other side sent; null if it doesn't check out. */
-export async function openLive(opts: { secret: string; sessionId: string; senderId: string; myKey: PublishedKey; theirKey: PublishedKey; nonce: string; ct: string }): Promise<Plain | null> {
+export async function openLive(opts: {
+  secret: string;
+  sessionId: string;
+  senderId: string;
+  myKey: PublishedKey;
+  theirKey: PublishedKey;
+  nonce: string;
+  ct: string;
+}): Promise<Plain | null> {
   await lib();
   try {
     const key = sharedKey(opts.secret, opts.myKey, opts.theirKey, opts.sessionId);
@@ -297,7 +319,13 @@ export async function encryptGroupMessage(opts: { userId: string; groupId: strin
   if (!secret) throw new Error("This device has no key for this group.");
   const msgKey = sodium.crypto_aead_xchacha20poly1305_ietf_keygen();
   const nonce = sodium.randombytes_buf(sodium.crypto_aead_xchacha20poly1305_ietf_NPUBBYTES);
-  const cipher = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(sodium.from_string(JSON.stringify(opts.plain)), groupAssociated(opts.groupId, opts.userId, opts.myKey.version), null, nonce, msgKey);
+  const cipher = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(
+    sodium.from_string(JSON.stringify(opts.plain)),
+    groupAssociated(opts.groupId, opts.userId, opts.myKey.version),
+    null,
+    nonce,
+    msgKey,
+  );
   const wraps = opts.recipients.map((k) => {
     const n = sodium.randombytes_buf(sodium.crypto_box_NONCEBYTES);
     const boxed = sodium.crypto_box_easy(msgKey, n, dec(k.pub), dec(secret));
@@ -323,7 +351,13 @@ export async function decryptGroupMessage(opts: {
     const raw = dec(opts.wrap.key);
     const n = raw.slice(0, sodium.crypto_box_NONCEBYTES);
     const msgKey = sodium.crypto_box_open_easy(raw.slice(sodium.crypto_box_NONCEBYTES), n, dec(opts.senderKey.pub), dec(secret));
-    const plain = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(null, dec(opts.ciphertext), groupAssociated(opts.groupId, opts.senderId, opts.senderKey.version), dec(opts.nonce), msgKey);
+    const plain = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
+      null,
+      dec(opts.ciphertext),
+      groupAssociated(opts.groupId, opts.senderId, opts.senderKey.version),
+      dec(opts.nonce),
+      msgKey,
+    );
     const parsed = JSON.parse(sodium.to_string(plain)) as Plain;
     return typeof parsed.t === "string" ? parsed : null;
   } catch {

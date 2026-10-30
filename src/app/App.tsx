@@ -62,13 +62,27 @@ keepPendingAdd();
 
 // A browser notification opened a new tab on /#chat=… or /#contact=…: go there once signed in.
 let pendingOpen: Note["open"] = openFromUrl(location.hash);
-if (pendingOpen.chatId || pendingOpen.userId || pendingOpen.liveId || pendingOpen.media || pendingOpen.groupId) history.replaceState(null, "", location.pathname + location.search);
+if (pendingOpen.chatId || pendingOpen.userId || pendingOpen.liveId || pendingOpen.media || pendingOpen.groupId)
+  history.replaceState(null, "", location.pathname + location.search);
 void registerServiceWorker();
 
 /** Is the app on screen (not a hidden tab, not an app in the background)? */
 const onScreenNow = () => (typeof document === "undefined" ? true : document.visibilityState === "visible");
 
-const SIGNED_IN_SCREENS = new Set<Screen["name"]>(["home", "myId", "add", "contact", "settings", "security", "chat", "live", "media", "group", "groupInfo", "safety"]);
+const SIGNED_IN_SCREENS = new Set<Screen["name"]>([
+  "home",
+  "myId",
+  "add",
+  "contact",
+  "settings",
+  "security",
+  "chat",
+  "live",
+  "media",
+  "group",
+  "groupInfo",
+  "safety",
+]);
 
 export function App() {
   const [screen, setScreen] = useState<Screen>({ name: "loading" });
@@ -244,7 +258,19 @@ export function App() {
     for (const event of CHAT_EVENTS) {
       socket.on(event, (payload: unknown) => {
         live.dispatch(event, payload);
-        if (event !== "typing" && event !== "msg:status" && event !== "live" && event !== "live:peer" && event !== "files:deleted" && event !== "exports:changed" && event !== "group:typing" && event !== "group:read" && event !== "group:call" && !event.startsWith("call:")) setContactsVersion((v) => v + 1);
+        if (
+          event !== "typing" &&
+          event !== "msg:status" &&
+          event !== "live" &&
+          event !== "live:peer" &&
+          event !== "files:deleted" &&
+          event !== "exports:changed" &&
+          event !== "group:typing" &&
+          event !== "group:read" &&
+          event !== "group:call" &&
+          !event.startsWith("call:")
+        )
+          setContactsVersion((v) => v + 1);
       });
     }
     live.attach(socket);
@@ -470,7 +496,14 @@ export function App() {
         return user ? <SafetyPage chat={screen.chat} userId={user.id} onBack={() => setScreen({ name: "chat", chatId: screen.chat.id })} /> : null;
       case "settings":
         return user ? (
-          <SettingsPage user={user} focusApp={screen.focus === "app"} onBack={home} onSecurityLog={() => setScreen({ name: "security" })} onMedia={() => setScreen({ name: "media" })} onSignOut={signOut} />
+          <SettingsPage
+            user={user}
+            focusApp={screen.focus === "app"}
+            onBack={home}
+            onSecurityLog={() => setScreen({ name: "security" })}
+            onMedia={() => setScreen({ name: "media" })}
+            onSignOut={signOut}
+          />
         ) : null;
       case "security":
         return <SecurityLogPage onBack={() => setScreen({ name: "settings" })} onAuthError={handleAuthError} />;

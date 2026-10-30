@@ -10,7 +10,10 @@
     "typecheck": "tsc -b",
     "test": "vitest run",
     "build:apk": "node scripts/build-apk.mjs",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "lint": "biome check",
+    "format": "biome format --write",
+    "check": "biome check && npm run typecheck && npm test"
   },
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^8.2.1",

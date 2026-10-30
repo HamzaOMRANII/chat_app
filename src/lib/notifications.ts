@@ -3,7 +3,19 @@ import { isNativeApp } from "./platform";
 
 /** What the server sends on the socket ("notify") for every event. Never any message content. */
 export type Note = {
-  kind: "contact_request" | "contact_added" | "chat_invite" | "chat_accepted" | "chat_declined" | "chat_ended" | "live_invite" | "media_request" | "export_request" | "export_answer" | "call" | "message";
+  kind:
+    | "contact_request"
+    | "contact_added"
+    | "chat_invite"
+    | "chat_accepted"
+    | "chat_declined"
+    | "chat_ended"
+    | "live_invite"
+    | "media_request"
+    | "export_request"
+    | "export_answer"
+    | "call"
+    | "message";
   title: string;
   body: string;
   tag: string;
@@ -110,7 +122,14 @@ export async function registerFcm(ask = false) {
     setFcm("working", "creating the notification channels");
     // No custom sound: the phone's default notification sound and ringtone
     await p.createChannel({ id: "hc_calls", name: "Calls", description: "Incoming voice and video calls", importance: 5, visibility: 1, vibration: true });
-    await p.createChannel({ id: "hc_events", name: "Messages and invitations", description: "Messages, chat and contact invitations", importance: 4, visibility: 0, vibration: true });
+    await p.createChannel({
+      id: "hc_events",
+      name: "Messages and invitations",
+      description: "Messages, chat and contact invitations",
+      importance: 4,
+      visibility: 0,
+      vibration: true,
+    });
     // Only this function's own listeners are replaced (the tap listener stays)
     for (const h of fcmHandles.splice(0)) await h.remove();
     const result = new Promise<string>((resolve, reject) => {
@@ -176,7 +195,9 @@ export function onNotificationTap(go: (open: Note["open"]) => void) {
     );
     void push().then(({ plugin: p }) =>
       p
-        .addListener("pushNotificationActionPerformed", ({ notification }) => go(openFromUrl(String((notification.data as { url?: string } | undefined)?.url ?? "/"))))
+        .addListener("pushNotificationActionPerformed", ({ notification }) =>
+          go(openFromUrl(String((notification.data as { url?: string } | undefined)?.url ?? "/"))),
+        )
         .then((handle) => cleanups.push(() => void handle.remove())),
     );
   } else if (webSupported()) {

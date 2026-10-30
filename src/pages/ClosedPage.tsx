@@ -16,7 +16,18 @@ export function ClosedPage({ closed, onSignIn }: { closed: Closed; onSignIn: () 
     <AuthScreen>
       <div className="flex flex-col items-center gap-4 pt-4 text-center">
         <div className="grid size-[72px] place-items-center rounded-[22px] border border-line-strong bg-panel">
-          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="text-ink-soft" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="34"
+            height="34"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-ink-soft"
+            aria-hidden="true"
+          >
             <rect x="2" y="4" width="14" height="10" rx="1.5" />
             <path d="M6 18h6" />
             <rect x="17" y="8" width="5" height="12" rx="1.2" />
@@ -46,9 +57,7 @@ export function ClosedPage({ closed, onSignIn }: { closed: Closed; onSignIn: () 
           Sign in on this device
         </Button>
       ) : null}
-      {replaced ? (
-        <Notice tone="error">Not you? Sign in here and change your password right away. Signing in closes the other session.</Notice>
-      ) : null}
+      {replaced ? <Notice tone="error">Not you? Sign in here and change your password right away. Signing in closes the other session.</Notice> : null}
     </AuthScreen>
   );
 }

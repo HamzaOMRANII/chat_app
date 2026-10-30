@@ -37,7 +37,17 @@ export function SettingsPage({ user, focusApp, onBack, onSecurityLog, onMedia, o
         <SecureCodeSettings />
         <div className="flex flex-col overflow-hidden rounded-2xl border border-line bg-panel">
           <button type="button" onClick={onSecurityLog} className={row}>
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <path d="M12 3 4 6v6c0 5 3.4 8.3 8 9 4.6-.7 8-4 8-9V6l-8-3z" />
               <path d="m9 12 2 2 4-4" />
             </svg>

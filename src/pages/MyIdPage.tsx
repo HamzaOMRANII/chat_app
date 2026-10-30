@@ -50,10 +50,18 @@ export function MyIdPage({ onBack, onAuthError }: { onBack: () => void; onAuthEr
       <PageHeader title="My ID" onBack={onBack} />
       <div className="flex flex-col gap-3.5 px-4 py-[18px]">
         {error ? <Notice tone="error">{error}</Notice> : null}
-        {status ? <p role="status" className="sr-only">{status}</p> : null}
+        {status ? (
+          <p role="status" className="sr-only">
+            {status}
+          </p>
+        ) : null}
 
         <section className="flex flex-col items-center gap-3.5 rounded-[20px] border border-line-strong bg-panel px-4 pb-4 pt-5">
-          {me ? <QrCode text={addContactLink(me.personalId)} label="QR code of your ID" /> : <span className="size-[192px] rounded-[14px] bg-raised" aria-hidden="true" />}
+          {me ? (
+            <QrCode text={addContactLink(me.personalId)} label="QR code of your ID" />
+          ) : (
+            <span className="size-[192px] rounded-[14px] bg-raised" aria-hidden="true" />
+          )}
           <div className="flex flex-col items-center gap-1">
             <p className="m-0 font-mono text-[10.5px] uppercase tracking-[0.16em] text-dim">personal ID</p>
             <p className="m-0 whitespace-nowrap font-mono text-[min(26px,7vw)] font-bold tracking-[0.08em]">{me?.personalId ?? "…"}</p>
@@ -85,7 +93,17 @@ export function MyIdPage({ onBack, onAuthError }: { onBack: () => void; onAuthEr
                 aria-label="Copy invite code"
                 className="grid size-11 place-items-center rounded-field border border-line-strong bg-raised text-ink"
               >
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="18"
+                  height="18"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
                   <rect x="9" y="9" width="11" height="11" rx="2" />
                   <path d="M5 15V5a1 1 0 0 1 1-1h10" />
                 </svg>
@@ -99,7 +117,9 @@ export function MyIdPage({ onBack, onAuthError }: { onBack: () => void; onAuthEr
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => run(async () => setMe({ ...me!, invite: await api<{ code: string; expiresAt: string }>("/api/contacts/invite", { method: "POST" }) }))}
+              onClick={() =>
+                run(async () => setMe({ ...me!, invite: await api<{ code: string; expiresAt: string }>("/api/contacts/invite", { method: "POST" }) }))
+              }
               disabled={!me}
               className="min-h-11 flex-1 rounded-field bg-brand text-sm font-bold text-white hover:bg-brand-hover disabled:opacity-50"
             >
@@ -140,7 +160,11 @@ export function MyIdPage({ onBack, onAuthError }: { onBack: () => void; onAuthEr
                 >
                   Change my ID
                 </button>
-                <button type="button" onClick={() => setConfirmNewId(false)} className="min-h-10 rounded-field border border-line-strong bg-transparent px-3.5 text-[13.5px] font-semibold text-ink">
+                <button
+                  type="button"
+                  onClick={() => setConfirmNewId(false)}
+                  className="min-h-10 rounded-field border border-line-strong bg-transparent px-3.5 text-[13.5px] font-semibold text-ink"
+                >
                   Keep it
                 </button>
               </span>

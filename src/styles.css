@@ -106,9 +106,7 @@
 }
 
 @utility bg-grid {
-  background-image:
-    linear-gradient(#ffffff07 1px, transparent 1px),
-    linear-gradient(90deg, #ffffff07 1px, transparent 1px);
+  background-image: linear-gradient(#ffffff07 1px, transparent 1px), linear-gradient(90deg, #ffffff07 1px, transparent 1px);
   background-size: 32px 32px;
 }
 

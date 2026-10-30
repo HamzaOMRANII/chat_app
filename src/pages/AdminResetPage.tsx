@@ -18,7 +18,13 @@ export function AdminResetPage({ onSignedIn, onBack }: { onSignedIn: (user: User
     setError("");
     try {
       const res = await api<{ user: User }>("/api/auth/admin-reset", {
-        body: { username: String(form.get("username") ?? "").trim().toLowerCase(), code: String(form.get("code") ?? "").replace(/\s/g, ""), device: await deviceInfo() },
+        body: {
+          username: String(form.get("username") ?? "")
+            .trim()
+            .toLowerCase(),
+          code: String(form.get("code") ?? "").replace(/\s/g, ""),
+          device: await deviceInfo(),
+        },
       });
       onSignedIn(res.user);
     } catch (err) {

@@ -28,7 +28,14 @@ type Shown = {
   expiresAt: string;
 };
 
-type Props = { groupId: string; userId: string; onBack: () => void; onInfo: () => void; onClosed: (text: string) => void; onAuthError: (err: unknown) => boolean };
+type Props = {
+  groupId: string;
+  userId: string;
+  onBack: () => void;
+  onInfo: () => void;
+  onClosed: (text: string) => void;
+  onAuthError: (err: unknown) => boolean;
+};
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 const SYSTEM: Record<string, (name: string) => string> = {
@@ -73,16 +80,13 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
   );
 
   /** The sender's key, if its signature checks out (cached). */
-  const senderKey = useCallback(
-    async (g: Group, senderId: string, version: number): Promise<PublishedKey | null> => {
-      const k = g.keys.find((x) => x.userId === senderId && x.version === version);
-      if (!k) return null;
-      const id = `${senderId}:${version}:${k.pub}`;
-      if (!verified.current.has(id)) verified.current.set(id, await verifyKey(k, g.id));
-      return verified.current.get(id) ? k : null;
-    },
-    [],
-  );
+  const senderKey = useCallback(async (g: Group, senderId: string, version: number): Promise<PublishedKey | null> => {
+    const k = g.keys.find((x) => x.userId === senderId && x.version === version);
+    if (!k) return null;
+    const id = `${senderId}:${version}:${k.pub}`;
+    if (!verified.current.has(id)) verified.current.set(id, await verifyKey(k, g.id));
+    return verified.current.get(id) ? k : null;
+  }, []);
 
   const open = useCallback(
     async (g: Group, wire: GroupWire[]): Promise<Shown[]> =>
@@ -91,9 +95,30 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
           let plain: Plain | null = null;
           if (!m.system && m.senderId && m.wrap && m.ciphertext && m.nonce && m.senderKeyVersion) {
             const key = await senderKey(g, m.senderId, m.senderKeyVersion);
-            plain = key ? await decryptGroupMessage({ userId, groupId: g.id, senderId: m.senderId, senderKey: key, wrap: m.wrap, ciphertext: m.ciphertext, nonce: m.nonce }) : null;
+            plain = key
+              ? await decryptGroupMessage({
+                  userId,
+                  groupId: g.id,
+                  senderId: m.senderId,
+                  senderKey: key,
+                  wrap: m.wrap,
+                  ciphertext: m.ciphertext,
+                  nonce: m.nonce,
+                })
+              : null;
           }
-          return { id: m.id, senderId: m.senderId, mine: m.senderId === userId, system: m.system, text: plain?.t ?? null, file: plain?.f, readBy: m.readBy, recipients: m.recipients, sentAt: m.sentAt, expiresAt: m.expiresAt };
+          return {
+            id: m.id,
+            senderId: m.senderId,
+            mine: m.senderId === userId,
+            system: m.system,
+            text: plain?.t ?? null,
+            file: plain?.f,
+            readBy: m.readBy,
+            recipients: m.recipients,
+            sentAt: m.sentAt,
+            expiresAt: m.expiresAt,
+          };
         }),
       ),
     [userId, senderKey],
@@ -182,7 +207,11 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
     const recipients = await recipientKeys(g);
     const body = await encryptGroupMessage({ userId, groupId: g.id, myKey, recipients, plain });
     try {
-      return (await api<{ message: { id: string; sentAt: string; expiresAt: string; recipients: number } }>(`/api/groups/${g.id}/messages`, { body: { ...body, ...(fileId ? { fileId } : {}) } })).message;
+      return (
+        await api<{ message: { id: string; sentAt: string; expiresAt: string; recipients: number } }>(`/api/groups/${g.id}/messages`, {
+          body: { ...body, ...(fileId ? { fileId } : {}) },
+        })
+      ).message;
     } catch (err) {
       if (retry && err instanceof ApiError && (err.code === "stale_members" || err.code === "stale_keys")) {
         const { group: fresh } = await api<{ group: Group }>(`/api/groups/${g.id}`);
@@ -202,7 +231,10 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
     setError("");
     try {
       const m = await post({ t: text });
-      setMessages((list) => [...list, { id: m.id, senderId: userId, mine: true, system: null, text, readBy: 1, recipients: m.recipients, sentAt: m.sentAt, expiresAt: m.expiresAt }]);
+      setMessages((list) => [
+        ...list,
+        { id: m.id, senderId: userId, mine: true, system: null, text, readBy: 1, recipients: m.recipients, sentAt: m.sentAt, expiresAt: m.expiresAt },
+      ]);
       setDraft("");
     } catch (err) {
       fail(err);
@@ -218,10 +250,38 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
       const abort = new AbortController();
       setUploads((list) => [...list, { key, name: file.name, size: file.size, done: 0, abort }]);
       try {
-        const ref = { ...(await uploadFile({ groupId }, file, (done) => setUploads((list) => list.map((u) => (u.key === key ? { ...u, done } : u))), abort.signal)), view: viewOnly };
+        const ref = {
+          ...(await uploadFile({ groupId }, file, (done) => setUploads((list) => list.map((u) => (u.key === key ? { ...u, done } : u))), abort.signal)),
+          view: viewOnly,
+        };
         const m = await post({ t: "", f: ref }, ref.id);
-        setFiles((map) => new Map(map).set(ref.id, { id: ref.id, senderId: userId, kind: "other", size: ref.size, status: "ready", deletedReason: null, messageId: m.id, expiresAt: m.expiresAt }));
-        setMessages((list) => [...list, { id: m.id, senderId: userId, mine: true, system: null, text: "", file: ref, readBy: 1, recipients: m.recipients, sentAt: m.sentAt, expiresAt: m.expiresAt }]);
+        setFiles((map) =>
+          new Map(map).set(ref.id, {
+            id: ref.id,
+            senderId: userId,
+            kind: "other",
+            size: ref.size,
+            status: "ready",
+            deletedReason: null,
+            messageId: m.id,
+            expiresAt: m.expiresAt,
+          }),
+        );
+        setMessages((list) => [
+          ...list,
+          {
+            id: m.id,
+            senderId: userId,
+            mine: true,
+            system: null,
+            text: "",
+            file: ref,
+            readBy: 1,
+            recipients: m.recipients,
+            sentAt: m.sentAt,
+            expiresAt: m.expiresAt,
+          },
+        ]);
       } catch (err) {
         if (!abort.signal.aborted) fail(err);
       } finally {
@@ -264,7 +324,17 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
     <main className="mx-auto flex h-dvh w-full max-w-[640px] flex-col">
       <header className="flex items-center gap-2 border-b border-line px-3 pb-2.5 pt-3.5">
         <button type="button" onClick={onBack} aria-label="Back" className="grid size-11 shrink-0 place-items-center rounded-field bg-transparent text-ink">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
@@ -274,7 +344,9 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
             <span className="truncate text-base font-extrabold">{group?.name ?? "Group"}</span>
             {group ? (
               <span className="flex items-center gap-2">
-                <span className={`whitespace-nowrap rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${group.mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep"}`}>
+                <span
+                  className={`whitespace-nowrap rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${group.mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep"}`}
+                >
                   {modeLabel(group)}
                 </span>
                 <span className="truncate font-mono text-[10.5px] text-dim">
@@ -294,7 +366,17 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
               title="Group voice call"
               className="grid size-11 shrink-0 place-items-center rounded-field border border-[#1F8A5B] bg-[#1F8A5B]/[0.12] text-[#7FE3B6] disabled:opacity-40"
             >
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                width="19"
+                height="19"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2" />
               </svg>
             </button>
@@ -306,7 +388,17 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
               title="Group video call"
               className="grid size-11 shrink-0 place-items-center rounded-field border border-[#1F8A5B] bg-[#1F8A5B]/[0.12] text-[#7FE3B6] disabled:opacity-40"
             >
-              <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                width="19"
+                height="19"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <path d="M3 6h12v12H3zM15 10l6-3v10l-6-3" />
               </svg>
             </button>
@@ -317,7 +409,8 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
         <div role="status" className="flex items-center gap-3 border-b border-[#1F8A5B] bg-[#1F8A5B]/[0.12] px-4 py-2.5">
           <span className="size-2 shrink-0 animate-pulse rounded-full bg-[#7FE3B6]" aria-hidden="true" />
           <span className="grow text-[13.5px] text-ink">
-            {group.call.kind === "video" ? "Video call" : "Call"} in progress · {group.call.joined.length} {group.call.joined.length === 1 ? "person" : "people"}
+            {group.call.kind === "video" ? "Video call" : "Call"} in progress · {group.call.joined.length}{" "}
+            {group.call.joined.length === 1 ? "person" : "people"}
           </span>
           <button
             type="button"
@@ -331,7 +424,17 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
       ) : null}
       {group ? (
         <p className="m-0 flex items-center gap-2.5 border-b border-line bg-panel px-[18px] py-2 font-mono text-[11px] text-dim">
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className={`shrink-0 ${group.mode === "auto" ? "text-auto" : "text-keep"}`} aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            className={`shrink-0 ${group.mode === "auto" ? "text-auto" : "text-keep"}`}
+            aria-hidden="true"
+          >
             <circle cx="12" cy="12" r="9" />
             <path d="M12 7v5l3 2" />
           </svg>
@@ -346,20 +449,25 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
         {visible.map((m) =>
           m.system ? (
             <p key={m.id} className="m-0 self-center text-center font-mono text-[11px] text-faint">
-              {"// "}{(SYSTEM[m.system.kind] ?? (() => "the group changed"))(m.system.name ?? "someone")} · {time(m.sentAt)}
+              {"// "}
+              {(SYSTEM[m.system.kind] ?? (() => "the group changed"))(m.system.name ?? "someone")} · {time(m.sentAt)}
             </p>
           ) : (
             <div key={m.id} className={`flex max-w-[86%] gap-2 ${m.mine ? "self-end" : "self-start"}`}>
               <div className={`flex min-w-0 flex-col gap-1 ${m.mine ? "items-end" : "items-start"}`}>
                 {m.file ? <FileBubble file={m.file} info={files.get(m.file.id)} mine={m.mine} onOpen={() => void openFile(m)} /> : null}
                 {m.text || (!m.file && m.text === null) ? (
-                  <div className={`px-3.5 py-2.5 text-[14.5px] leading-snug ${m.mine ? "rounded-[16px_16px_4px_16px] bg-brand text-white" : "rounded-[16px_16px_16px_4px] border border-line bg-raised"}`}>
+                  <div
+                    className={`px-3.5 py-2.5 text-[14.5px] leading-snug ${m.mine ? "rounded-[16px_16px_4px_16px] bg-brand text-white" : "rounded-[16px_16px_16px_4px] border border-line bg-raised"}`}
+                  >
                     {m.mine ? null : (
                       <p className="m-0 mb-0.5 text-xs font-bold" style={{ color: memberColor(name(m.senderId)) }}>
                         {name(m.senderId)}
                       </p>
                     )}
-                    <p className={`m-0 whitespace-pre-wrap break-words ${m.text === null ? "italic text-dim" : ""}`}>{m.text ?? "This message can't be read on this device."}</p>
+                    <p className={`m-0 whitespace-pre-wrap break-words ${m.text === null ? "italic text-dim" : ""}`}>
+                      {m.text ?? "This message can't be read on this device."}
+                    </p>
                   </div>
                 ) : !m.mine ? (
                   <p className="m-0 text-xs font-bold" style={{ color: memberColor(name(m.senderId)) }}>
@@ -368,14 +476,25 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
                 ) : null}
                 <p className="m-0 font-mono text-[10.5px] text-faint">
                   {time(m.sentAt)}
-                  {m.mine ? (m.readBy - 1 >= m.recipients && m.recipients > 0 ? <span className="text-accent-soft"> · ✓✓ read by all</span> : m.readBy > 1 ? ` · ✓✓ read by ${m.readBy - 1} of ${m.recipients}` : " · sent") : null}
+                  {m.mine ? (
+                    m.readBy - 1 >= m.recipients && m.recipients > 0 ? (
+                      <span className="text-accent-soft"> · ✓✓ read by all</span>
+                    ) : m.readBy > 1 ? (
+                      ` · ✓✓ read by ${m.readBy - 1} of ${m.recipients}`
+                    ) : (
+                      " · sent"
+                    )
+                  ) : null}
                 </p>
               </div>
             </div>
           ),
         )}
         {uploads.map((u) => (
-          <div key={u.key} className="flex w-[78%] max-w-[320px] flex-col gap-2 self-end rounded-[16px_16px_4px_16px] border border-dashed border-accent bg-accent/[0.08] px-3 py-2.5">
+          <div
+            key={u.key}
+            className="flex w-[78%] max-w-[320px] flex-col gap-2 self-end rounded-[16px_16px_4px_16px] border border-dashed border-accent bg-accent/[0.08] px-3 py-2.5"
+          >
             <span className="flex items-center gap-2.5">
               <span className="flex min-w-0 grow flex-col gap-0.5">
                 <span className="truncate text-[13.5px] font-bold text-[#F3D3D9]">{u.name}</span>
@@ -383,7 +502,12 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
                   encrypting + sending · {bytes(u.done)} of {bytes(u.size)}
                 </span>
               </span>
-              <button type="button" onClick={() => u.abort.abort()} aria-label={`Cancel sending ${u.name}`} className="grid size-8 shrink-0 place-items-center rounded-[9px] border border-[#5A3640] bg-transparent text-[#F3D3D9]">
+              <button
+                type="button"
+                onClick={() => u.abort.abort()}
+                aria-label={`Cancel sending ${u.name}`}
+                className="grid size-8 shrink-0 place-items-center rounded-[9px] border border-[#5A3640] bg-transparent text-[#F3D3D9]"
+              >
                 ✕
               </button>
             </span>
@@ -392,7 +516,11 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
             </span>
           </div>
         ))}
-        {typingNames.length ? <p className="m-0 font-mono text-[11px] text-dim">{typingNames.join(", ")} {typingNames.length > 1 ? "are" : "is"} typing…</p> : null}
+        {typingNames.length ? (
+          <p className="m-0 font-mono text-[11px] text-dim">
+            {typingNames.join(", ")} {typingNames.length > 1 ? "are" : "is"} typing…
+          </p>
+        ) : null}
         <div ref={bottom} />
       </div>
 
@@ -410,7 +538,17 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
           aria-label={group && !group.files ? "Files aren't allowed in this group" : "Attach a file"}
           className="grid size-11 shrink-0 place-items-center rounded-field border border-line-strong bg-panel text-ink disabled:border-line disabled:text-[#4A4F63]"
         >
-          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="19"
+            height="19"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" />
           </svg>
         </button>
@@ -425,15 +563,36 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
             className="min-h-[46px] w-full resize-none rounded-[14px] border border-line-strong bg-panel px-3.5 py-3 text-[15px] leading-snug text-ink outline-none placeholder:text-faint focus:border-accent"
           />
         </label>
-        <button type="submit" aria-label="Send" disabled={!draft.trim() || sending} className="grid size-[46px] shrink-0 place-items-center rounded-[14px] bg-brand text-white disabled:opacity-50">
-          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <button
+          type="submit"
+          aria-label="Send"
+          disabled={!draft.trim() || sending}
+          className="grid size-[46px] shrink-0 place-items-center rounded-[14px] bg-brand text-white disabled:opacity-50"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="19"
+            height="19"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M5 12h14M13 6l6 6-6 6" />
           </svg>
         </button>
       </form>
 
       {attaching && group ? (
-        <AttachSheet peerName="the group" keptFor={longDuration(group.retentionMinutes)} canExport onPick={(picked, viewOnly) => void sendFiles(picked, viewOnly)} onClose={() => setAttaching(false)} />
+        <AttachSheet
+          peerName="the group"
+          keptFor={longDuration(group.retentionMinutes)}
+          canExport
+          onPick={(picked, viewOnly) => void sendFiles(picked, viewOnly)}
+          onClose={() => setAttaching(false)}
+        />
       ) : null}
       {viewing?.file ? (
         <MediaViewer
@@ -452,8 +611,21 @@ export function GroupPage({ groupId, userId, onBack, onInfo, onClosed, onAuthErr
 /** The group icon (several people). */
 export function GroupAvatar({ size = 46 }: { size?: number }) {
   return (
-    <span aria-hidden="true" className="grid shrink-0 place-items-center bg-[#1F2A44] text-auto" style={{ width: size, height: size, borderRadius: size * 0.32 }}>
-      <svg viewBox="0 0 24 24" width={size * 0.48} height={size * 0.48} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <span
+      aria-hidden="true"
+      className="grid shrink-0 place-items-center bg-[#1F2A44] text-auto"
+      style={{ width: size, height: size, borderRadius: size * 0.32 }}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width={size * 0.48}
+        height={size * 0.48}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         <circle cx="9" cy="8" r="3.2" />
         <path d="M3 20a6 6 0 0 1 12 0" />
         <circle cx="17" cy="9" r="2.6" />

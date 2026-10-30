@@ -91,7 +91,8 @@ const IDLE: CallState = {
 };
 
 const UNAVAILABLE: Record<string, (name: string) => string> = {
-  not_taking_calls: (name) => `${name} isn't taking calls right now. They chose to turn off incoming calls, for their own reasons. That's their choice: you can still write to them.`,
+  not_taking_calls: (name) =>
+    `${name} isn't taking calls right now. They chose to turn off incoming calls, for their own reasons. That's their choice: you can still write to them.`,
   offline: (name) => `${name} isn't connected right now. Write to them, or try again later.`,
   busy: (name) => `${name} is already in a call. Try again in a moment.`,
   not_contact: () => "You can only call your contacts.",
@@ -157,7 +158,9 @@ async function iceServers(): Promise<RTCIceServer[]> {
 
 async function media(kind: CallKind) {
   return navigator.mediaDevices.getUserMedia({
-    audio: state.micId ? { deviceId: { exact: state.micId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true },
+    audio: state.micId
+      ? { deviceId: { exact: state.micId }, echoCancellation: true, noiseSuppression: true }
+      : { echoCancellation: true, noiseSuppression: true },
     video: kind === "video" ? (state.camId ? { deviceId: { exact: state.camId } } : { facingMode: state.facing }) : false,
   });
 }
@@ -182,15 +185,34 @@ async function report(when: string) {
   if (!pc || !state.callId) return;
   const stats = await pc.getStats().catch(() => null);
   const output = state.outputs.find((o) => o.id === state.outputId);
-  const out: Record<string, unknown> = { epoch: state.audioEpoch, when, kind: state.kind, relayed: state.relayed, route: state.route, output: output ? `${output.kind}:${output.name}` : null, muted: state.muted, native: isNativeApp };
+  const out: Record<string, unknown> = {
+    epoch: state.audioEpoch,
+    when,
+    kind: state.kind,
+    relayed: state.relayed,
+    route: state.route,
+    output: output ? `${output.kind}:${output.name}` : null,
+    muted: state.muted,
+    native: isNativeApp,
+  };
   stats?.forEach((r) => {
-    if (r.type === "inbound-rtp" && r.kind === "audio") out.audioIn = { bytes: r.bytesReceived, packets: r.packetsReceived, lost: r.packetsLost, energy: r.totalAudioEnergy, level: r.audioLevel };
+    if (r.type === "inbound-rtp" && r.kind === "audio")
+      out.audioIn = { bytes: r.bytesReceived, packets: r.packetsReceived, lost: r.packetsLost, energy: r.totalAudioEnergy, level: r.audioLevel };
     if (r.type === "outbound-rtp" && r.kind === "audio") out.audioOut = { bytes: r.bytesSent, packets: r.packetsSent };
   });
   const track = state.remote?.getAudioTracks()[0];
   out.remoteTrack = track ? { enabled: track.enabled, muted: track.muted, state: track.readyState } : null;
   const el = document.querySelector<HTMLAudioElement>("audio[data-remote]");
-  out.player = el ? { paused: el.paused, volume: el.volume, muted: el.muted, hasStream: Boolean(el.srcObject), readyState: el.readyState, playError: el.getAttribute("data-play-error") } : null;
+  out.player = el
+    ? {
+        paused: el.paused,
+        volume: el.volume,
+        muted: el.muted,
+        hasStream: Boolean(el.srcObject),
+        readyState: el.readyState,
+        playError: el.getAttribute("data-play-error"),
+      }
+    : null;
   await api("/api/calls/diag", { body: { callId: state.callId, data: out } }).catch(() => {});
 }
 
@@ -232,7 +254,11 @@ async function groupPeer(peerId: string, asCaller: boolean) {
     /* storage unavailable */
   }
   const gpc = new RTCPeerConnection({ iceServers: await iceServers(), iceTransportPolicy: relayOnly ? "relay" : "all" });
-  const entry = { pc: gpc, pending: [] as RTCIceCandidateInit[] } as { pc: RTCPeerConnection; pending: RTCIceCandidateInit[]; lost?: ReturnType<typeof setTimeout> };
+  const entry = { pc: gpc, pending: [] as RTCIceCandidateInit[] } as {
+    pc: RTCPeerConnection;
+    pending: RTCIceCandidateInit[];
+    lost?: ReturnType<typeof setTimeout>;
+  };
   gpcs.set(peerId, entry);
   const local = state.local!;
   for (const track of local.getTracks()) gpc.addTrack(track, local);
@@ -266,7 +292,8 @@ async function onGroupSignal(from: string, data: { sdp?: RTCSessionDescriptionIn
   try {
     if (data.sdp) {
       // Each person's offer/answer is signed by their identity: nobody in between
-      if (member.identityPub && !(await verifyCall(member.identityPub, state.callId!, data.sdp.type ?? "", data.sdp.sdp ?? "", data.sig ?? ""))) return dropPeer(from);
+      if (member.identityPub && !(await verifyCall(member.identityPub, state.callId!, data.sdp.type ?? "", data.sdp.sdp ?? "", data.sig ?? "")))
+        return dropPeer(from);
       const entry = gpcs.get(from) ?? (data.sdp.type === "offer" ? await groupPeer(from, false) : null);
       if (!entry) return;
       await entry.pc.setRemoteDescription(data.sdp);
@@ -337,7 +364,12 @@ function finish(note: string) {
 }
 
 async function fail(err: unknown) {
-  const text = err instanceof DOMException && err.name === "NotAllowedError" ? "H_CHAT needs the microphone (and the camera for video). Allow it and try again." : err instanceof Error ? err.message : "The call failed.";
+  const text =
+    err instanceof DOMException && err.name === "NotAllowedError"
+      ? "H_CHAT needs the microphone (and the camera for video). Allow it and try again."
+      : err instanceof Error
+        ? err.message
+        : "The call failed.";
   if (state.callId) live.send("call:leave", { callId: state.callId });
   finish(text);
 }
@@ -385,7 +417,8 @@ async function connect(asCaller: boolean) {
     if (pc.connectionState === "failed") void fail(new Error("The connection was lost."));
     // Lost for 15 s (the other phone went silent, its network dropped): end it properly on both sides
     clearTimeout(lostTimer);
-    if (pc.connectionState === "disconnected") lostTimer = setTimeout(() => pc?.connectionState === "disconnected" && void fail(new Error("The connection was lost.")), 15_000);
+    if (pc.connectionState === "disconnected")
+      lostTimer = setTimeout(() => pc?.connectionState === "disconnected" && void fail(new Error("The connection was lost.")), 15_000);
   };
   if (asCaller) {
     const offer = await pc.createOffer();
@@ -395,7 +428,15 @@ async function connect(asCaller: boolean) {
   }
 }
 
-async function onSignal({ callId, from, data }: { callId: string; from: string; data: { sdp?: RTCSessionDescriptionInit; sig?: string; candidate?: RTCIceCandidateInit } }) {
+async function onSignal({
+  callId,
+  from,
+  data,
+}: {
+  callId: string;
+  from: string;
+  data: { sdp?: RTCSessionDescriptionInit; sig?: string; candidate?: RTCIceCandidateInit };
+}) {
   if (callId === state.callId && state.group) return onGroupSignal(from, data);
   if (callId !== state.callId || from !== state.peer?.id) return;
   try {
@@ -437,7 +478,16 @@ export function attachCalls(id: string) {
   live.on<{ callId: string; kind: CallKind; from: CallPeer; group?: { id: string; name: string } }>("call:incoming", async ({ callId, kind, from, group }) => {
     if (state.phase !== "idle" && state.phase !== "ended") return group ? undefined : live.send("call:leave", { callId });
     clearTimeout(dismissTimer);
-    set({ ...IDLE, phase: "incoming", callId, kind, peer: from, outgoing: false, group: group ?? null, code: group ? null : await codeFor(from).catch(() => null) });
+    set({
+      ...IDLE,
+      phase: "incoming",
+      callId,
+      kind,
+      peer: from,
+      outgoing: false,
+      group: group ?? null,
+      code: group ? null : await codeFor(from).catch(() => null),
+    });
     startRing(true);
     // A group call keeps going without me: stop ringing after 45 s (it can still be joined from the group)
     if (group) setTimeout(() => state.phase === "incoming" && state.callId === callId && finish(`Missed call in ${group.name}.`), 45_000);
@@ -488,11 +538,23 @@ export const calls = {
   async startGroup(group: { id: string; name: string }, kind: CallKind) {
     if (state.phase !== "idle" && state.phase !== "ended") return;
     clearTimeout(dismissTimer);
-    set({ ...IDLE, phase: "calling", group, kind, outgoing: true, starter: true, cameraOn: kind === "video", peer: { id: group.id, username: group.name, identityPub: null } });
+    set({
+      ...IDLE,
+      phase: "calling",
+      group,
+      kind,
+      outgoing: true,
+      starter: true,
+      cameraOn: kind === "video",
+      peer: { id: group.id, username: group.name, identityPub: null },
+    });
     try {
       const reply = await live.request<{ callId?: string; error?: string }>("call:start", { groupId: group.id, kind });
       if (!reply.callId) {
-        return set({ phase: "unavailable", note: reply.error === "already_running" ? `A call is already running in ${group.name}: join it from the group.` : "The call couldn't start." });
+        return set({
+          phase: "unavailable",
+          note: reply.error === "already_running" ? `A call is already running in ${group.name}: join it from the group.` : "The call couldn't start.",
+        });
       }
       set({ callId: reply.callId });
       startRing(false);
@@ -555,9 +617,16 @@ export const calls = {
     else track.enabled = state.cameraOn;
     const sender = pc?.getSenders().find((s) => s.track?.kind === kind);
     await sender?.replaceTrack(track);
-    for (const g of gpcs.values()) await g.pc.getSenders().find((s) => s.track?.kind === kind)?.replaceTrack(track);
+    for (const g of gpcs.values())
+      await g.pc
+        .getSenders()
+        .find((s) => s.track?.kind === kind)
+        ?.replaceTrack(track);
     const local = new MediaStream([...(state.local?.getTracks().filter((t) => t.kind !== kind) ?? []), track]);
-    state.local?.getTracks().filter((t) => t.kind === kind).forEach((t) => t.stop());
+    state.local
+      ?.getTracks()
+      .filter((t) => t.kind === kind)
+      .forEach((t) => t.stop());
     set({ local });
   },
   async flip() {
@@ -610,4 +679,3 @@ export const calls = {
     }
   },
 };
-

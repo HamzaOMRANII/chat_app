@@ -55,10 +55,16 @@ export function UpdatePrompt() {
           </span>
           <h1 className="m-0 text-2xl font-extrabold">Update required</h1>
           <p className="m-0 text-sm leading-relaxed text-dim">
-            This version of H_CHAT ({__APP_VERSION__}) is no longer supported. Install version {required.latest?.version ?? required.min} or newer to keep using it. Your chats stay.
+            This version of H_CHAT ({__APP_VERSION__}) is no longer supported. Install version {required.latest?.version ?? required.min} or newer to keep using
+            it. Your chats stay.
           </p>
           {required.latest ? (
-            <a href={serverUrl(`/download/${required.latest.file}`)} target="_blank" rel="noreferrer" className="grid min-h-12 w-full place-items-center rounded-[14px] bg-brand text-[15px] font-bold text-white no-underline">
+            <a
+              href={serverUrl(`/download/${required.latest.file}`)}
+              target="_blank"
+              rel="noreferrer"
+              className="grid min-h-12 w-full place-items-center rounded-[14px] bg-brand text-[15px] font-bold text-white no-underline"
+            >
               Install {required.latest.version} ({formatSize(required.latest.size)})
             </a>
           ) : null}
@@ -84,9 +90,15 @@ export function UpdatePrompt() {
             {__APP_VERSION__} → <span className="text-online">{release.version}</span>
           </span>
         </div>
-        <p className="m-0 text-[13px] leading-normal text-ink-soft">A new version of H_CHAT is ready ({formatSize(release.size)}). Install it to get the latest fixes.</p>
+        <p className="m-0 text-[13px] leading-normal text-ink-soft">
+          A new version of H_CHAT is ready ({formatSize(release.size)}). Install it to get the latest fixes.
+        </p>
         <div className="flex gap-2">
-          <button type="button" onClick={later} className="min-h-11 flex-1 rounded-xl border border-line-strong bg-transparent text-[13.5px] font-semibold text-ink">
+          <button
+            type="button"
+            onClick={later}
+            className="min-h-11 flex-1 rounded-xl border border-line-strong bg-transparent text-[13.5px] font-semibold text-ink"
+          >
             Later
           </button>
           <a
@@ -98,7 +110,9 @@ export function UpdatePrompt() {
             Install
           </a>
         </div>
-        <p className="m-0 text-[11.5px] leading-normal text-faint">The download opens in your browser; then tap the file to install. Your chats and settings stay.</p>
+        <p className="m-0 text-[11.5px] leading-normal text-faint">
+          The download opens in your browser; then tap the file to install. Your chats and settings stay.
+        </p>
       </section>
     </div>
   );
