@@ -3,8 +3,7 @@ import type { ButtonHTMLAttributes } from "react";
 type Variant = "primary" | "secondary" | "danger";
 
 const variants: Record<Variant, string> = {
-  primary:
-    "bg-brand text-white font-bold shadow-[0_10px_26px_rgba(126,34,52,0.35)] hover:bg-brand-hover",
+  primary: "bg-brand text-white font-bold shadow-[0_10px_26px_rgba(126,34,52,0.35)] hover:bg-brand-hover",
   secondary: "bg-panel text-ink font-semibold border border-line-strong hover:border-accent",
   // Destructive actions read like the Pass manager: mono, bracketed, dashed
   danger:

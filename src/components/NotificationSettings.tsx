@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 import { Notice } from "./Screen";
 import { api } from "../lib/api";
-import { enableNotifications, getFcmStatus, onFcmStatus, permission, registerFcm, type FcmStatus, type NotifyPrefs, type Permission } from "../lib/notifications";
+import {
+  enableNotifications,
+  getFcmStatus,
+  onFcmStatus,
+  permission,
+  registerFcm,
+  type FcmStatus,
+  type NotifyPrefs,
+  type Permission,
+} from "../lib/notifications";
 import { isNativeApp } from "../lib/platform";
 
 const KINDS: { key: keyof NotifyPrefs; label: string; hint: string }[] = [
@@ -69,7 +78,11 @@ export function NotificationSettings() {
             </span>
           </span>
           {perm === "default" ? (
-            <button type="button" onClick={turnOn} className="min-h-11 shrink-0 rounded-[11px] bg-brand px-4 text-[13.5px] font-bold text-white hover:bg-brand-hover">
+            <button
+              type="button"
+              onClick={turnOn}
+              className="min-h-11 shrink-0 rounded-[11px] bg-brand px-4 text-[13.5px] font-bold text-white hover:bg-brand-hover"
+            >
               Turn on
             </button>
           ) : perm === "granted" ? (
@@ -136,7 +149,11 @@ export function NotificationPrompt() {
     } catch {
       /* storage unavailable */
     }
-    if (!asked) void permission().then((p) => setShow(p === "default"), () => {});
+    if (!asked)
+      void permission().then(
+        (p) => setShow(p === "default"),
+        () => {},
+      );
   }, []);
   const done = () => {
     setShow(false);
@@ -151,10 +168,15 @@ export function NotificationPrompt() {
     <Notice>
       <span className="flex flex-wrap items-center gap-3">
         <span className="min-w-[12rem] flex-1">
-          <strong className="text-ink">Turn on notifications</strong> to know about new messages, chat invitations and contact requests when H_CHAT isn't on screen.
+          <strong className="text-ink">Turn on notifications</strong> to know about new messages, chat invitations and contact requests when H_CHAT isn't on
+          screen.
         </span>
         <span className="ml-auto flex shrink-0 gap-2">
-          <button type="button" onClick={done} className="min-h-10 rounded-[11px] border border-line-strong bg-transparent px-3 text-[13px] font-semibold text-ink-soft">
+          <button
+            type="button"
+            onClick={done}
+            className="min-h-10 rounded-[11px] border border-line-strong bg-transparent px-3 text-[13px] font-semibold text-ink-soft"
+          >
             Not now
           </button>
           <button

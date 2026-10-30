@@ -5,7 +5,19 @@ import { api, ApiError } from "../lib/api";
 import { longDuration, type Chat, type WireMessage } from "../lib/chats";
 import { decryptMessage } from "../lib/e2e";
 import { isNativeApp } from "../lib/platform";
-import { openSavedFolder, AUTO_PREVIEW, bytes, deleteFiles, downloadFile, fileUrl, knownUrl, saveBlob, type FileInfo, type FileRef, type MediaSummary } from "../lib/files";
+import {
+  openSavedFolder,
+  AUTO_PREVIEW,
+  bytes,
+  deleteFiles,
+  downloadFile,
+  fileUrl,
+  knownUrl,
+  saveBlob,
+  type FileInfo,
+  type FileRef,
+  type MediaSummary,
+} from "../lib/files";
 import { live } from "../lib/live";
 import { useViewOnlyProtection } from "../lib/protect";
 
@@ -44,7 +56,17 @@ async function chatMedia(chatId: string, userId: string): Promise<Item[]> {
     const myKey = chat.keys.find((k) => k.userId === userId && k.version === (mine ? m.senderKeyVersion : m.recipientKeyVersion));
     const theirKey = chat.keys.find((k) => k.userId === peerId && k.version === (mine ? m.recipientKeyVersion : m.senderKeyVersion));
     if (!myKey || !theirKey) continue;
-    const plain = await decryptMessage({ userId, chatId, senderId: m.senderId, myKey, theirKey, ciphertext: m.ciphertext, nonce: m.nonce, senderKeyVersion: m.senderKeyVersion, recipientKeyVersion: m.recipientKeyVersion });
+    const plain = await decryptMessage({
+      userId,
+      chatId,
+      senderId: m.senderId,
+      myKey,
+      theirKey,
+      ciphertext: m.ciphertext,
+      nonce: m.nonce,
+      senderKeyVersion: m.senderKeyVersion,
+      recipientKeyVersion: m.recipientKeyVersion,
+    });
     if (plain?.f) items.push({ file: plain.f, info: byId.get(m.fileId)!, chat, mine, canSave: options.options.export && (mine || !plain.f.view) });
   }
   return items.reverse();
@@ -88,7 +110,9 @@ function Thumb({ item, selected, now, onToggle }: { item: Item; selected: boolea
         ) : null}
       </span>
       <span className="absolute bottom-1 left-1.5 font-mono text-[9.5px] text-ink [text-shadow:0_1px_2px_#000]">{bytes(item.file.size)}</span>
-      <span className={`absolute bottom-1 right-1.5 font-mono text-[9.5px] [text-shadow:0_1px_2px_#000] ${soon ? "text-keep" : "text-ink-soft"}`}>{left(item.info.expiresAt, now)}</span>
+      <span className={`absolute bottom-1 right-1.5 font-mono text-[9.5px] [text-shadow:0_1px_2px_#000] ${soon ? "text-keep" : "text-ink-soft"}`}>
+        {left(item.info.expiresAt, now)}
+      </span>
     </button>
   );
 }
@@ -150,9 +174,7 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
     }
     setBusy("");
     setSavedSome(allowed.length > 0);
-    setNote(
-      `${allowed.length} file${allowed.length === 1 ? "" : "s"} downloaded${skipped ? ` · ${skipped} view only or not allowed with that contact` : ""}.`,
-    );
+    setNote(`${allowed.length} file${allowed.length === 1 ? "" : "s"} downloaded${skipped ? ` · ${skipped} view only or not allowed with that contact` : ""}.`);
   }
 
   async function remove(ids: string[]) {
@@ -173,7 +195,17 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
     <main className="mx-auto flex h-dvh w-full max-w-[640px] flex-col">
       <header className="flex items-center gap-2 border-b border-line px-3 pb-2.5 pt-3.5">
         <button type="button" onClick={onBack} aria-label="Back" className="grid size-11 shrink-0 place-items-center rounded-field bg-transparent text-ink">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
@@ -197,17 +229,39 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
 
       {summary?.request ? (
         <p role="alert" className="m-0 border-b border-[#5C4A22] bg-keep/[0.08] px-4 py-2.5 text-[12.5px] leading-normal text-[#F3E3BF]">
-          The administrator asked you to download your media: <strong>your files will be deleted on {new Date(summary.request.deadline).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</strong>.
+          The administrator asked you to download your media:{" "}
+          <strong>
+            your files will be deleted on{" "}
+            {new Date(summary.request.deadline).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+          </strong>
+          .
         </p>
       ) : null}
       <p role="note" className="m-0 flex gap-2.5 border-b border-[#5C4A22] bg-keep/[0.08] px-4 py-2.5 text-[12.5px] leading-normal text-[#F3E3BF]">
-        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="#F2C46B" strokeWidth="2" strokeLinecap="round" aria-hidden="true" className="mt-px shrink-0">
+        <svg
+          viewBox="0 0 24 24"
+          width="17"
+          height="17"
+          fill="none"
+          stroke="#F2C46B"
+          strokeWidth="2"
+          strokeLinecap="round"
+          aria-hidden="true"
+          className="mt-px shrink-0"
+        >
           <circle cx="12" cy="12" r="9" />
           <path d="M12 7v5l3 2" />
         </svg>
         <span>
-          Media is kept only as long as {keptFor ? <>this chat allows (<strong>{keptFor}</strong> after it's sent)</> : "each chat allows"}, then deleted automatically for both of you. Download
-          what you want to keep.
+          Media is kept only as long as{" "}
+          {keptFor ? (
+            <>
+              this chat allows (<strong>{keptFor}</strong> after it's sent)
+            </>
+          ) : (
+            "each chat allows"
+          )}
+          , then deleted automatically for both of you. Download what you want to keep.
         </span>
       </p>
 
@@ -240,9 +294,21 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
                       onClick={() => toggle(i.file.id)}
                       className="flex w-full items-center gap-3 bg-transparent px-1 py-2.5 text-left text-ink"
                     >
-                      <span className={`grid size-[22px] shrink-0 place-items-center rounded-full border-2 ${on ? "border-ink bg-brand text-white" : "border-faint"}`} aria-hidden="true">
+                      <span
+                        className={`grid size-[22px] shrink-0 place-items-center rounded-full border-2 ${on ? "border-ink bg-brand text-white" : "border-faint"}`}
+                        aria-hidden="true"
+                      >
                         {on ? (
-                          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                          <svg
+                            viewBox="0 0 24 24"
+                            width="12"
+                            height="12"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
                             <path d="M5 12l5 5 9-10" />
                           </svg>
                         ) : null}
@@ -293,7 +359,11 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
           </button>
         </div>
         {savedSome && isNativeApp ? (
-          <button type="button" onClick={() => void openSavedFolder().catch(() => setError("Open the Files app, then Documents › H_CHAT."))} className="min-h-10 rounded-xl border border-line-strong bg-transparent text-[13px] font-semibold text-ink">
+          <button
+            type="button"
+            onClick={() => void openSavedFolder().catch(() => setError("Open the Files app, then Documents › H_CHAT."))}
+            className="min-h-10 rounded-xl border border-line-strong bg-transparent text-[13px] font-semibold text-ink"
+          >
             Open the folder (Documents/H_CHAT)
           </button>
         ) : null}
@@ -302,19 +372,29 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
             <button type="button" disabled={Boolean(busy)} onClick={() => void download(items)} className="bg-transparent p-0 font-semibold text-link">
               Download all ({items.length})
             </button>
-            <button type="button" disabled={Boolean(busy)} onClick={() => setConfirm(items.map((i) => i.file.id))} className="bg-transparent p-0 font-semibold text-danger-ink">
+            <button
+              type="button"
+              disabled={Boolean(busy)}
+              onClick={() => setConfirm(items.map((i) => i.file.id))}
+              className="bg-transparent p-0 font-semibold text-danger-ink"
+            >
               Delete all
             </button>
           </div>
         ) : null}
         <p className="m-0 text-[11.5px] leading-normal text-faint">
-          Deleting removes the file for both of you. Downloads are decrypted on this device; files shared as view only, or with contacts whose rules don't allow export, can't be downloaded.
+          Deleting removes the file for both of you. Downloads are decrypted on this device; files shared as view only, or with contacts whose rules don't allow
+          export, can't be downloaded.
         </p>
       </footer>
 
       {confirm ? (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 px-[18px]">
-          <section role="alertdialog" aria-labelledby="del-title" className="flex w-full max-w-[420px] flex-col gap-3.5 rounded-[22px] border border-line-strong bg-panel px-5 py-[22px]">
+          <section
+            role="alertdialog"
+            aria-labelledby="del-title"
+            className="flex w-full max-w-[420px] flex-col gap-3.5 rounded-[22px] border border-line-strong bg-panel px-5 py-[22px]"
+          >
             <h2 id="del-title" className="m-0 text-[20px] font-extrabold">
               Delete {confirm.length} file{confirm.length === 1 ? "" : "s"}?
             </h2>
@@ -326,7 +406,11 @@ export function MediaPage({ chatId, userId, onBack, onAuthError }: Props) {
             >
               DELETE
             </button>
-            <button type="button" onClick={() => setConfirm(null)} className="min-h-[50px] rounded-[14px] border border-line-strong bg-raised text-[14.5px] font-semibold text-ink">
+            <button
+              type="button"
+              onClick={() => setConfirm(null)}
+              className="min-h-[50px] rounded-[14px] border border-line-strong bg-raised text-[14.5px] font-semibold text-ink"
+            >
               Keep them
             </button>
           </section>

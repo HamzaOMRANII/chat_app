@@ -1,7 +1,14 @@
 import { useEffect, useRef } from "react";
 import { Avatar } from "./PageHeader";
 
-export type Banner = { id: number; tag: string; title: string; body: string; /** Who it's about: shows their initials; none = a plain notice. */ who?: string; onOpen?: () => void };
+export type Banner = {
+  id: number;
+  tag: string;
+  title: string;
+  body: string /** Who it's about: shows their initials; none = a plain notice. */;
+  who?: string;
+  onOpen?: () => void;
+};
 
 const SHOWN_MS = 6000;
 
@@ -35,7 +42,10 @@ function BannerCard({ banner, onDismiss }: { banner: Banner; onDismiss: () => vo
     </>
   );
   return (
-    <div role="status" className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-line-strong bg-raised py-1 pl-1 pr-1 shadow-[0_14px_36px_rgba(0,0,0,0.45)]">
+    <div
+      role="status"
+      className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-line-strong bg-raised py-1 pl-1 pr-1 shadow-[0_14px_36px_rgba(0,0,0,0.45)]"
+    >
       {banner.onOpen ? (
         <button
           type="button"

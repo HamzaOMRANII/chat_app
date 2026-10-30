@@ -83,7 +83,19 @@ export function CodePage({ challenge, onSignedIn, onUsePasscode, onRestart }: Pr
       {showSecure ? (
         <Card>
           <form onSubmit={onSecureSubmit} className="flex flex-col gap-4">
-            <TextField label="Secure code" name="secureCode" type="password" inputMode="numeric" mono required pattern="\d{8,12}" title="8 to 12 digits" autoComplete="off" autoFocus className="text-[22px] tracking-[0.3em]" />
+            <TextField
+              label="Secure code"
+              name="secureCode"
+              type="password"
+              inputMode="numeric"
+              mono
+              required
+              pattern="\d{8,12}"
+              title="8 to 12 digits"
+              autoComplete="off"
+              autoFocus
+              className="text-[22px] tracking-[0.3em]"
+            />
             {secureError ? <Notice tone="error">{secureError}</Notice> : null}
             <Button type="submit" block disabled={busy}>
               {busy ? "Checking…" : "Sign in with secure code"}

@@ -5,8 +5,24 @@ import { isNativeApp } from "./platform";
 export type { FileRef };
 export type FileKind = "image" | "video" | "audio" | "document" | "archive" | "other";
 /** What the server knows about a chat's file: no name, no content. */
-export type FileInfo = { id: string; senderId: string; kind: FileKind; size: number; status: "ready" | "deleted"; deletedReason: string | null; messageId: string | null; expiresAt: string };
-export type MediaSummary = { used: number; files: number; limit: number; maxFile: number; request: { deadline: string } | null; chats: { chatId: string; files: number }[] };
+export type FileInfo = {
+  id: string;
+  senderId: string;
+  kind: FileKind;
+  size: number;
+  status: "ready" | "deleted";
+  deletedReason: string | null;
+  messageId: string | null;
+  expiresAt: string;
+};
+export type MediaSummary = {
+  used: number;
+  files: number;
+  limit: number;
+  maxFile: number;
+  request: { deadline: string } | null;
+  chats: { chatId: string; files: number }[];
+};
 
 export const PIECE = 4 * 1024 * 1024;
 export const MAX_FILE = 100 * 1024 * 1024;
@@ -122,7 +138,8 @@ export async function shareBlob(blob: Blob, name: string) {
   }
   await navigator.share({ files: [new File([blob], name, { type: blob.type })] });
 }
-export const canShareFiles = isNativeApp || (typeof navigator !== "undefined" && typeof navigator.canShare === "function" && navigator.canShare({ files: [new File([""], "x.txt")] }));
+export const canShareFiles =
+  isNativeApp || (typeof navigator !== "undefined" && typeof navigator.canShare === "function" && navigator.canShare({ files: [new File([""], "x.txt")] }));
 
 export const deleteFiles = (ids: string[]) => api<{ deleted: number }>("/api/files/delete", { body: { ids } });
 

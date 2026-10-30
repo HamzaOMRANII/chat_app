@@ -68,7 +68,11 @@ export function AudioCheck() {
     } catch (err) {
       stop.current();
       setStep("error");
-      setNote(err instanceof DOMException && err.name === "NotAllowedError" ? "H_CHAT isn't allowed to use the microphone. Allow it in the settings and try again." : "The check couldn't run on this device.");
+      setNote(
+        err instanceof DOMException && err.name === "NotAllowedError"
+          ? "H_CHAT isn't allowed to use the microphone. Allow it in the settings and try again."
+          : "The check couldn't run on this device.",
+      );
     }
   }
 
@@ -79,10 +83,19 @@ export function AudioCheck() {
         <span className="flex grow flex-col gap-0.5">
           <span className="text-[14.5px] font-bold">Test microphone and speaker</span>
           <span className="text-[12.5px] leading-normal text-dim">
-            {step === "playing" ? "Listen…" : step === "recording" || step === "listening" ? "Say something for 3 seconds…" : "Two beeps, then 3 seconds of your voice played back. Nothing leaves this device."}
+            {step === "playing"
+              ? "Listen…"
+              : step === "recording" || step === "listening"
+                ? "Say something for 3 seconds…"
+                : "Two beeps, then 3 seconds of your voice played back. Nothing leaves this device."}
           </span>
         </span>
-        <button type="button" disabled={busy} onClick={() => void run()} className="min-h-10 shrink-0 rounded-[11px] border border-line-strong bg-transparent px-3.5 text-[13px] font-bold text-ink disabled:opacity-50">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void run()}
+          className="min-h-10 shrink-0 rounded-[11px] border border-line-strong bg-transparent px-3.5 text-[13px] font-bold text-ink disabled:opacity-50"
+        >
           {step === "done" || step === "error" ? "Again" : "Start"}
         </button>
       </div>

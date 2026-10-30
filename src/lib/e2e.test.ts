@@ -13,7 +13,25 @@ globalThis.localStorage = {
     return memory.size;
   },
 } as Storage;
-import { decryptGroupMessage, encryptGroupMessage, keepGroupKey, decryptMessage, encryptMessage, forgetChat, newFileKey, openLive, openPiece, sealLive, sealPiece, identity, keepChatKey, newChatKey, safetyCode, verifyKey, type PublishedKey } from "./e2e";
+import {
+  decryptGroupMessage,
+  encryptGroupMessage,
+  keepGroupKey,
+  decryptMessage,
+  encryptMessage,
+  forgetChat,
+  newFileKey,
+  openLive,
+  openPiece,
+  sealLive,
+  sealPiece,
+  identity,
+  keepChatKey,
+  newChatKey,
+  safetyCode,
+  verifyKey,
+  type PublishedKey,
+} from "./e2e";
 
 beforeEach(() => localStorage.clear());
 
@@ -84,9 +102,19 @@ describe("live chat", () => {
     const keyA: PublishedKey = { userId: "A", version: 1, pub: a.pub, sig: a.sig, identityPub: idA.signPub };
     const keyB: PublishedKey = { userId: "B", version: 1, pub: b.pub, sig: b.sig, identityPub: idB.signPub };
     const stored = memory.size;
-    const sealed = await sealLive({ secret: a.secret, sessionId: "live1", userId: "A", myKey: keyA, theirKey: keyB, plain: { t: "draft", text: "hi" } as { t: string } });
+    const sealed = await sealLive({
+      secret: a.secret,
+      sessionId: "live1",
+      userId: "A",
+      myKey: keyA,
+      theirKey: keyB,
+      plain: { t: "draft", text: "hi" } as { t: string },
+    });
     expect(memory.size).toBe(stored);
-    expect(await openLive({ secret: b.secret, sessionId: "live1", senderId: "A", myKey: keyB, theirKey: keyA, ...sealed })).toMatchObject({ t: "draft", text: "hi" });
+    expect(await openLive({ secret: b.secret, sessionId: "live1", senderId: "A", myKey: keyB, theirKey: keyA, ...sealed })).toMatchObject({
+      t: "draft",
+      text: "hi",
+    });
     // Another session, or a forged sender, doesn't open
     expect(await openLive({ secret: b.secret, sessionId: "live2", senderId: "A", myKey: keyB, theirKey: keyA, ...sealed })).toBeNull();
     expect(await openLive({ secret: b.secret, sessionId: "live1", senderId: "B", myKey: keyB, theirKey: keyA, ...sealed })).toBeNull();
@@ -122,12 +150,34 @@ describe("groups", () => {
     expect(sent.wraps.map((w) => w.userId)).toEqual(["A", "B"]);
     for (const p of ["A", "B"]) {
       const wrap = sent.wraps.find((w) => w.userId === p)!;
-      expect(await decryptGroupMessage({ userId: p, groupId: "group1", senderId: "A", senderKey: keys.A!, wrap, ciphertext: sent.ciphertext, nonce: sent.nonce })).toEqual({ t: "site at 2" });
+      expect(
+        await decryptGroupMessage({ userId: p, groupId: "group1", senderId: "A", senderKey: keys.A!, wrap, ciphertext: sent.ciphertext, nonce: sent.nonce }),
+      ).toEqual({ t: "site at 2" });
     }
     // C tries with B's wrap: their key doesn't open it
     const stolen = sent.wraps.find((w) => w.userId === "B")!;
-    expect(await decryptGroupMessage({ userId: "C", groupId: "group1", senderId: "A", senderKey: keys.A!, wrap: stolen, ciphertext: sent.ciphertext, nonce: sent.nonce })).toBeNull();
+    expect(
+      await decryptGroupMessage({
+        userId: "C",
+        groupId: "group1",
+        senderId: "A",
+        senderKey: keys.A!,
+        wrap: stolen,
+        ciphertext: sent.ciphertext,
+        nonce: sent.nonce,
+      }),
+    ).toBeNull();
     // Claiming another sender fails
-    expect(await decryptGroupMessage({ userId: "B", groupId: "group1", senderId: "C", senderKey: keys.C!, wrap: stolen, ciphertext: sent.ciphertext, nonce: sent.nonce })).toBeNull();
+    expect(
+      await decryptGroupMessage({
+        userId: "B",
+        groupId: "group1",
+        senderId: "C",
+        senderKey: keys.C!,
+        wrap: stolen,
+        ciphertext: sent.ciphertext,
+        nonce: sent.nonce,
+      }),
+    ).toBeNull();
   });
 });

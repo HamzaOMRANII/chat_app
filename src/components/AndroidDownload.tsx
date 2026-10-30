@@ -52,8 +52,8 @@ export function AndroidDownload() {
         <ol className="mt-3 flex list-decimal flex-col gap-2 pl-5 leading-relaxed">
           <li>Open chat.omranisystems.com on your Android phone and tap Download.</li>
           <li>
-            Open the downloaded file. If Android asks, allow <strong>Install unknown apps</strong> for your browser
-            (Settings → Apps → your browser → Install unknown apps).
+            Open the downloaded file. If Android asks, allow <strong>Install unknown apps</strong> for your browser (Settings → Apps → your browser → Install
+            unknown apps).
           </li>
           <li>
             If Play Protect warns about an unknown app, tap <strong>More details → Install anyway</strong>.

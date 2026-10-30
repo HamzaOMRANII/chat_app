@@ -1,7 +1,17 @@
 import { useRef, type ClipboardEvent, type KeyboardEvent } from "react";
 
 /** Six one-digit boxes; typing moves forward, Backspace moves back, pasting fills all. */
-export function CodeInput({ value, onChange, length = 6, autoFocus = true }: { value: string; onChange: (code: string) => void; length?: number; autoFocus?: boolean }) {
+export function CodeInput({
+  value,
+  onChange,
+  length = 6,
+  autoFocus = true,
+}: {
+  value: string;
+  onChange: (code: string) => void;
+  length?: number;
+  autoFocus?: boolean;
+}) {
   const refs = useRef<(HTMLInputElement | null)[]>([]);
   const digits = Array.from({ length }, (_, i) => value[i] ?? "");
 

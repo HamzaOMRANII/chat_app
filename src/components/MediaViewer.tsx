@@ -74,7 +74,9 @@ export function MediaViewer({ file, from, sentAt, expiresIn, canSave, viewOnly =
               {viewOnly ? <span className="absolute inset-0" aria-hidden="true" /> : null}
             </>
           ) : isText ? (
-            <pre className="absolute inset-0 m-0 overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-[13px] leading-relaxed text-ink-soft">{text ?? ""}</pre>
+            <pre className="absolute inset-0 m-0 overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-[13px] leading-relaxed text-ink-soft">
+              {text ?? ""}
+            </pre>
           ) : (
             <p className="text-sm text-dim">{file.name} is ready.</p>
           )
@@ -94,11 +96,19 @@ export function MediaViewer({ file, from, sentAt, expiresIn, canSave, viewOnly =
         ) : null}
         {canSave ? (
           <div className="flex gap-2">
-            <button type="button" onClick={() => void act("save")} className="min-h-12 flex-1 rounded-[14px] border border-line-strong bg-transparent text-sm font-semibold text-ink">
+            <button
+              type="button"
+              onClick={() => void act("save")}
+              className="min-h-12 flex-1 rounded-[14px] border border-line-strong bg-transparent text-sm font-semibold text-ink"
+            >
               Save to {navigator.userAgent.includes("Android") ? "phone" : "device"}
             </button>
             {canShareFiles ? (
-              <button type="button" onClick={() => void act("share")} className="min-h-12 flex-1 rounded-[14px] border border-line-strong bg-transparent text-sm font-semibold text-ink">
+              <button
+                type="button"
+                onClick={() => void act("share")}
+                className="min-h-12 flex-1 rounded-[14px] border border-line-strong bg-transparent text-sm font-semibold text-ink"
+              >
                 Share
               </button>
             ) : null}
@@ -107,7 +117,11 @@ export function MediaViewer({ file, from, sentAt, expiresIn, canSave, viewOnly =
         {note && url ? <p className="m-0 font-mono text-[11px] text-ok">{note}</p> : null}
         <p className="m-0 text-xs leading-normal text-faint">
           Media is kept only as long as the chat allows, then deleted automatically.
-          {canSave ? " A saved copy is yours: it leaves H_CHAT." : viewOnly ? ` ${from} shared it as view only: it can't be saved.` : " Saving isn't allowed with this contact."}
+          {canSave
+            ? " A saved copy is yours: it leaves H_CHAT."
+            : viewOnly
+              ? ` ${from} shared it as view only: it can't be saved.`
+              : " Saving isn't allowed with this contact."}
         </p>
       </footer>
     </div>

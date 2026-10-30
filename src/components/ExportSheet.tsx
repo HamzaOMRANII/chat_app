@@ -47,8 +47,8 @@ export function ExportSheet({ chatId, peerName, onAsked, onClose, onAuthError }:
             Export this chat
           </h2>
           <p className="m-0 text-[13px] leading-normal text-dim">
-            {peerName} must approve first. Then you have <strong className="text-ink">24 hours</strong> to save it. The zip is built on this device: the server never sees what's
-            inside.
+            {peerName} must approve first. Then you have <strong className="text-ink">24 hours</strong> to save it. The zip is built on this device: the server
+            never sees what's inside.
           </p>
         </div>
         {box(messages, setMessages, "Messages", "All messages still in the chat, as a readable file")}
@@ -70,7 +70,9 @@ export function ExportSheet({ chatId, peerName, onAsked, onClose, onAuthError }:
             ))}
           </div>
         </div>
-        <p className="m-0 text-[11.5px] leading-normal text-faint">Files {peerName} shared as view only are never exported. What already expired can't be exported.</p>
+        <p className="m-0 text-[11.5px] leading-normal text-faint">
+          Files {peerName} shared as view only are never exported. What already expired can't be exported.
+        </p>
         {error ? <p className="m-0 rounded-xl border border-dashed border-danger px-3 py-2 text-[13px] text-danger-ink">{error}</p> : null}
         <button
           type="button"

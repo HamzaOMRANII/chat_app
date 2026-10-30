@@ -59,7 +59,10 @@ export async function recipientKeys(g: Group) {
 export async function prepareGroups(userId: string) {
   const { groups } = await api<{ groups: Group[] }>("/api/groups");
   for (const g of groups) await ensureGroupKey(g, userId).catch(() => {});
-  forgetGroupsExcept(userId, groups.map((g) => g.id));
+  forgetGroupsExcept(
+    userId,
+    groups.map((g) => g.id),
+  );
 }
 
 /** A stable colour per member name (sender names in the group). */

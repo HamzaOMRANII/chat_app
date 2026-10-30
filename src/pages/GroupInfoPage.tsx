@@ -75,7 +75,11 @@ export function GroupInfoPage({ groupId, userId, onBack, onLeft, onAuthError }: 
                   <button type="button" onClick={() => void leave()} className="min-h-10 rounded-field bg-brand px-3.5 text-[13.5px] font-bold text-white">
                     Leave
                   </button>
-                  <button type="button" onClick={() => setConfirm(false)} className="min-h-10 rounded-field border border-line-strong bg-transparent px-3.5 text-[13.5px] font-semibold text-ink">
+                  <button
+                    type="button"
+                    onClick={() => setConfirm(false)}
+                    className="min-h-10 rounded-field border border-line-strong bg-transparent px-3.5 text-[13.5px] font-semibold text-ink"
+                  >
                     Stay
                   </button>
                 </span>
@@ -90,7 +94,9 @@ export function GroupInfoPage({ groupId, userId, onBack, onLeft, onAuthError }: 
               Leave the group
             </button>
           )}
-          <p className="m-0 text-center text-xs leading-normal text-faint">Members and settings are managed by the administrator. Whoever leaves or is removed can't read new messages.</p>
+          <p className="m-0 text-center text-xs leading-normal text-faint">
+            Members and settings are managed by the administrator. Whoever leaves or is removed can't read new messages.
+          </p>
         </div>
       ) : (
         <p className="p-6 text-sm text-dim">Loading…</p>

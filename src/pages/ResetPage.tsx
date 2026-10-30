@@ -93,8 +93,28 @@ export function ResetPage({ user, onDone, onSignOut }: { user: User; onDone: (us
       <Card>
         <form onSubmit={onSubmit} className="flex flex-col gap-3.5">
           <TextField label="New password" name="password" type="password" autoComplete="new-password" required minLength={12} />
-          <TextField label="New recovery passcode · 8 digits" name="passcode" type="password" inputMode="numeric" mono required pattern="\d{8}" title="Exactly 8 digits" autoComplete="off" />
-          <TextField label="Repeat the passcode" name="passcode2" type="password" inputMode="numeric" mono required pattern="\d{8}" title="Exactly 8 digits" autoComplete="off" />
+          <TextField
+            label="New recovery passcode · 8 digits"
+            name="passcode"
+            type="password"
+            inputMode="numeric"
+            mono
+            required
+            pattern="\d{8}"
+            title="Exactly 8 digits"
+            autoComplete="off"
+          />
+          <TextField
+            label="Repeat the passcode"
+            name="passcode2"
+            type="password"
+            inputMode="numeric"
+            mono
+            required
+            pattern="\d{8}"
+            title="Exactly 8 digits"
+            autoComplete="off"
+          />
           <div className="flex flex-col gap-1.5">
             <TextField label="Email (optional change)" name="email" type="email" defaultValue={user.email} autoComplete="email" />
             <span className="text-xs text-faint">A new email is confirmed with a code before it's used.</span>

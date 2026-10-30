@@ -38,7 +38,19 @@ export function PasscodePage({ challenge, onSignedIn, onBack, onRestart }: Props
       </div>
       <Card>
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          <TextField label="Passcode" name="passcode" type="password" inputMode="numeric" mono required pattern="\d{8}" title="Exactly 8 digits" autoComplete="off" autoFocus className="text-[22px] tracking-[0.4em]" />
+          <TextField
+            label="Passcode"
+            name="passcode"
+            type="password"
+            inputMode="numeric"
+            mono
+            required
+            pattern="\d{8}"
+            title="Exactly 8 digits"
+            autoComplete="off"
+            autoFocus
+            className="text-[22px] tracking-[0.4em]"
+          />
           <Notice tone="warning">
             This passcode works <strong>once</strong>. Next you must set a new password and a new passcode before using H_CHAT.
           </Notice>
@@ -49,9 +61,7 @@ export function PasscodePage({ challenge, onSignedIn, onBack, onRestart }: Props
           <p className="m-0 text-center font-mono text-[11.5px] text-dim">5 wrong tries lock the account for 30 minutes</p>
         </form>
       </Card>
-      <p className="m-0 mt-auto text-center text-[13px] leading-relaxed text-faint">
-        Forgot the passcode too? Ask the administrator for a reset code.
-      </p>
+      <p className="m-0 mt-auto text-center text-[13px] leading-relaxed text-faint">Forgot the passcode too? Ask the administrator for a reset code.</p>
     </AuthScreen>
   );
 }

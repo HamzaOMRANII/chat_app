@@ -42,7 +42,17 @@ export function SecurityLogPage({ onBack, onAuthError }: { onBack: () => void; o
     <main className="mx-auto flex min-h-dvh w-full max-w-[560px] flex-col">
       <header className="flex items-center gap-2.5 border-b border-line px-3.5 pb-3 pt-4">
         <button type="button" onClick={onBack} aria-label="Back" className="grid size-11 place-items-center rounded-field bg-transparent text-ink">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="22"
+            height="22"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
@@ -59,7 +69,10 @@ export function SecurityLogPage({ onBack, onAuthError }: { onBack: () => void; o
               {data.current.name}
             </p>
             <p className="m-0 font-mono text-xs text-ink-soft break-words">
-              {[data.current.platform === "android" ? `Android ${data.current.osVersion ?? ""}`.trim() : data.current.os, data.current.appVersion && `app ${data.current.appVersion}`]
+              {[
+                data.current.platform === "android" ? `Android ${data.current.osVersion ?? ""}`.trim() : data.current.os,
+                data.current.appVersion && `app ${data.current.appVersion}`,
+              ]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
@@ -90,8 +103,7 @@ export function SecurityLogPage({ onBack, onAuthError }: { onBack: () => void; o
           })}
         </ul>
         <p className="m-0 text-[12.5px] leading-relaxed text-faint">
-          IP address, device and approximate location are kept 90 days to protect your account. The administrator can see this
-          log, never your messages.
+          IP address, device and approximate location are kept 90 days to protect your account. The administrator can see this log, never your messages.
         </p>
       </div>
     </main>

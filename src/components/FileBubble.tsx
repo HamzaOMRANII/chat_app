@@ -9,7 +9,17 @@ const icons = {
 };
 export function Icon({ d, size = 18 }: { d: keyof typeof icons; size?: number }) {
   return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       {icons[d]}
     </svg>
   );
@@ -100,7 +110,11 @@ export function FileBubble({ file, info, mine, onOpen }: Props) {
           <span className="truncate text-sm font-bold">{file.name}</span>
           <span className={`font-mono text-[11px] ${mine ? "text-white/70" : "text-dim"}`}>
             {!mine && file.view ? "view only · " : ""}
-            {failed ? "couldn't open it" : loading !== null ? `${bytes(loading)} of ${bytes(file.size)}` : `${/\.([a-z0-9]{1,6})$/i.exec(file.name)?.[1]?.toUpperCase() ?? "FILE"} · ${bytes(file.size)}`}
+            {failed
+              ? "couldn't open it"
+              : loading !== null
+                ? `${bytes(loading)} of ${bytes(file.size)}`
+                : `${/\.([a-z0-9]{1,6})$/i.exec(file.name)?.[1]?.toUpperCase() ?? "FILE"} · ${bytes(file.size)}`}
           </span>
         </span>
         <span className={`grid size-[38px] shrink-0 place-items-center rounded-[10px] border ${mine ? "border-white/30" : "border-line-strong"}`}>

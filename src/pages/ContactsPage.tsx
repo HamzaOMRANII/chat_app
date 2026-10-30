@@ -31,8 +31,7 @@ type Props = {
   onAuthError: (err: unknown) => boolean;
 };
 
-const iconButton =
-  "grid size-11 place-items-center rounded-field border border-line bg-panel text-ink";
+const iconButton = "grid size-11 place-items-center rounded-field border border-line bg-panel text-ink";
 
 export function ContactsPage({
   lastLogin,
@@ -61,7 +60,11 @@ export function ContactsPage({
 
   const load = useCallback(async () => {
     try {
-      const [contacts, open, running] = await Promise.all([api<ContactList>("/api/contacts"), api<{ chats: Chat[] }>("/api/chats"), api<{ live: LiveSession[] }>("/api/live")]);
+      const [contacts, open, running] = await Promise.all([
+        api<ContactList>("/api/contacts"),
+        api<{ chats: Chat[] }>("/api/chats"),
+        api<{ live: LiveSession[] }>("/api/live"),
+      ]);
       setList(contacts);
       setChats(open.chats);
       setLiveChats(running.live);
@@ -73,10 +76,7 @@ export function ContactsPage({
         .catch(() => {});
       setError("");
     } catch (err) {
-      if (!onAuthError(err))
-        setError(
-          err instanceof Error ? err.message : "Couldn't load your contacts",
-        );
+      if (!onAuthError(err)) setError(err instanceof Error ? err.message : "Couldn't load your contacts");
     }
   }, [onAuthError]);
   useEffect(() => {
@@ -95,8 +95,7 @@ export function ContactsPage({
     try {
       await api(`/api/contacts/requests/${id}/${action}`, { method: "POST" });
     } catch (err) {
-      if (!onAuthError(err))
-        setError(err instanceof Error ? err.message : "Something went wrong");
+      if (!onAuthError(err)) setError(err instanceof Error ? err.message : "Something went wrong");
     }
     setBusy(null);
     await load();
@@ -117,13 +116,7 @@ export function ContactsPage({
           <Wordmark />
         </span>
         {isNativeApp ? null : (
-          <button
-            type="button"
-            onClick={onGetApp}
-            aria-label="Get the Android app"
-            title="Get the Android app"
-            className={iconButton}
-          >
+          <button type="button" onClick={onGetApp} aria-label="Get the Android app" title="Get the Android app" className={iconButton}>
             <svg
               viewBox="0 0 24 24"
               width="20"
@@ -140,12 +133,7 @@ export function ContactsPage({
             </svg>
           </button>
         )}
-        <button
-          type="button"
-          onClick={onMyId}
-          aria-label="My ID and invite codes"
-          className={iconButton}
-        >
+        <button type="button" onClick={onMyId} aria-label="My ID and invite codes" className={iconButton}>
           <svg
             viewBox="0 0 24 24"
             width="20"
@@ -163,12 +151,7 @@ export function ContactsPage({
             <path d="M14 14h3v3M21 14v7h-7" />
           </svg>
         </button>
-        <button
-          type="button"
-          onClick={onSettings}
-          aria-label="Settings"
-          className={iconButton}
-        >
+        <button type="button" onClick={onSettings} aria-label="Settings" className={iconButton}>
           <svg
             viewBox="0 0 24 24"
             width="20"
@@ -191,19 +174,10 @@ export function ContactsPage({
           <Notice>
             <span className="flex items-start gap-3">
               <span className="grow">
-                Last sign-in:{" "}
-                <strong className="text-ink">
-                  {lastLogin.deviceName ?? "a device"}
-                </strong>
-                , {place(lastLogin.city, lastLogin.country)},{" "}
+                Last sign-in: <strong className="text-ink">{lastLogin.deviceName ?? "a device"}</strong>, {place(lastLogin.city, lastLogin.country)},{" "}
                 {when(lastLogin.at)}. Not you? Change your password.
               </span>
-              <button
-                type="button"
-                onClick={() => setShowLastLogin(false)}
-                aria-label="Dismiss"
-                className="min-h-6 bg-transparent px-1 text-dim"
-              >
+              <button type="button" onClick={() => setShowLastLogin(false)} aria-label="Dismiss" className="min-h-6 bg-transparent px-1 text-dim">
                 ×
               </button>
             </span>
@@ -221,8 +195,10 @@ export function ContactsPage({
                 {media.files} file{media.files === 1 ? "" : "s"} ({bytes(media.used)})
               </strong>{" "}
               will be deleted on{" "}
-              <strong>{new Date(media.request.deadline).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</strong>. Download what you
-              want to keep before then.
+              <strong>
+                {new Date(media.request.deadline).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+              </strong>
+              . Download what you want to keep before then.
             </p>
             <button type="button" onClick={onOpenMedia} className="min-h-11 rounded-xl bg-brand text-sm font-bold text-white">
               Open my media
@@ -252,7 +228,9 @@ export function ContactsPage({
                       <span className="size-1.5 rounded-full bg-live" />
                       LIVE
                     </span>
-                    {s.inviteExpiresAt ? <span className="font-mono text-[11px] text-dim">{countdown(new Date(s.inviteExpiresAt).getTime() - now)} left</span> : null}
+                    {s.inviteExpiresAt ? (
+                      <span className="font-mono text-[11px] text-dim">{countdown(new Date(s.inviteExpiresAt).getTime() - now)} left</span>
+                    ) : null}
                   </span>
                 </span>
                 <span className="ml-auto rounded-[11px] bg-brand px-3.5 py-2.5 text-[13.5px] font-bold text-white">See</span>
@@ -278,7 +256,9 @@ export function ContactsPage({
                   <span className="text-[14.5px]">
                     <strong>{c.with!.username}</strong> wants to chat
                   </span>
-                  <span className={`self-start rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${c.mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep"}`}>
+                  <span
+                    className={`self-start rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${c.mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep"}`}
+                  >
                     {modeLabel(c)}
                   </span>
                 </span>
@@ -295,18 +275,11 @@ export function ContactsPage({
             </h2>
             <ul className="m-0 flex list-none flex-col rounded-2xl border border-line-strong bg-raised p-0">
               {list!.incoming.map((r, i) => (
-                <li
-                  key={r.id}
-                  className={`flex flex-wrap items-center gap-3 px-3.5 py-3 ${i ? "border-t border-line" : ""}`}
-                >
+                <li key={r.id} className={`flex flex-wrap items-center gap-3 px-3.5 py-3 ${i ? "border-t border-line" : ""}`}>
                   <Avatar username={r.username} size={40} online={false} />
                   <span className="flex min-w-[9rem] flex-1 flex-col gap-0.5">
-                    <span className="truncate text-[14.5px] font-bold">
-                      {r.username}
-                    </span>
-                    <span className="text-xs text-dim">
-                      wants to connect · {ago(r.at)}
-                    </span>
+                    <span className="truncate text-[14.5px] font-bold">{r.username}</span>
+                    <span className="text-xs text-dim">wants to connect · {ago(r.at)}</span>
                   </span>
                   <span className="ml-auto flex shrink-0 gap-2">
                     <button
@@ -341,18 +314,11 @@ export function ContactsPage({
                 </li>
               ))}
               {list!.outgoing.map((r, i) => (
-                <li
-                  key={r.id}
-                  className={`flex flex-wrap items-center gap-3 px-3.5 py-3 ${i || list!.incoming.length ? "border-t border-line" : ""}`}
-                >
+                <li key={r.id} className={`flex flex-wrap items-center gap-3 px-3.5 py-3 ${i || list!.incoming.length ? "border-t border-line" : ""}`}>
                   <Avatar username={r.username} size={40} muted />
                   <span className="flex min-w-[9rem] flex-1 flex-col gap-0.5">
-                    <span className="truncate text-[14.5px] font-bold">
-                      {r.username}
-                    </span>
-                    <span className="text-xs text-dim">
-                      you asked · waiting
-                    </span>
+                    <span className="truncate text-[14.5px] font-bold">{r.username}</span>
+                    <span className="text-xs text-dim">you asked · waiting</span>
                   </span>
                   <button
                     type="button"
@@ -378,18 +344,32 @@ export function ContactsPage({
                 const online = g.members.filter((m) => m.online).length;
                 return (
                   <li key={g.id}>
-                    <button type="button" onClick={() => onOpenGroup(g.id)} className="flex w-full items-center gap-3.5 rounded-[14px] bg-transparent px-2 py-[11px] text-left text-ink hover:bg-panel">
+                    <button
+                      type="button"
+                      onClick={() => onOpenGroup(g.id)}
+                      className="flex w-full items-center gap-3.5 rounded-[14px] bg-transparent px-2 py-[11px] text-left text-ink hover:bg-panel"
+                    >
                       <GroupAvatar />
                       <span className="flex min-w-0 grow flex-col gap-[3px]">
                         <span className="flex items-center gap-2">
                           <span className="truncate text-[15.5px] font-bold">{g.name}</span>
-                          {g.unread ? <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-accent px-1.5 font-mono text-[11px] font-bold text-bg">{g.unread}</span> : null}
+                          {g.unread ? (
+                            <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-accent px-1.5 font-mono text-[11px] font-bold text-bg">
+                              {g.unread}
+                            </span>
+                          ) : null}
                         </span>
                         <span className={`truncate text-[13px] ${g.unread ? "font-semibold text-ink-soft" : "text-faint"}`}>
-                          {g.unread ? `${g.unread} new message${g.unread > 1 ? "s" : ""}` : `${g.members.length} members${online > 1 ? ` · ${online - 1} online` : ""}`}
+                          {g.unread
+                            ? `${g.unread} new message${g.unread > 1 ? "s" : ""}`
+                            : `${g.members.length} members${online > 1 ? ` · ${online - 1} online` : ""}`}
                         </span>
                       </span>
-                      <span className={`shrink-0 rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${g.mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep"}`}>{modeLabel(g)}</span>
+                      <span
+                        className={`shrink-0 rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${g.mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep"}`}
+                      >
+                        {modeLabel(g)}
+                      </span>
                     </button>
                   </li>
                 );
@@ -416,31 +396,19 @@ export function ContactsPage({
           </section>
         ) : null}
 
-        <section
-          aria-labelledby="contacts"
-          className="flex grow flex-col gap-1.5"
-        >
+        <section aria-labelledby="contacts" className="flex grow flex-col gap-1.5">
           <div className="flex items-center justify-between gap-2">
             <h2 id="contacts" className="eyebrow m-0 text-[11px] font-normal">
               contacts · {list?.contacts.length ?? 0}
             </h2>
 
-            {online ? (
-              <span className="font-mono text-[11px] text-online">
-                {online} online
-              </span>
-            ) : null}
+            {online ? <span className="font-mono text-[11px] text-online">{online} online</span> : null}
           </div>
-          {list === null && !error ? (
-            <p className="text-sm text-dim">Loading…</p>
-          ) : null}
+          {list === null && !error ? <p className="text-sm text-dim">Loading…</p> : null}
           {list?.contacts.length === 0 ? (
             <div className="mt-2 flex flex-col items-center gap-2 rounded-card border border-dashed border-line-strong px-5 py-9 text-center">
               <p className="m-0 text-[15px] font-bold">No contacts yet</p>
-              <p className="m-0 max-w-[34ch] text-[13.5px] leading-relaxed text-dim">
-                Share your ID or a one-time invite code, or add someone with
-                theirs.
-              </p>
+              <p className="m-0 max-w-[34ch] text-[13.5px] leading-relaxed text-dim">Share your ID or a one-time invite code, or add someone with theirs.</p>
             </div>
           ) : null}
           <ul className="-mx-2 m-0 flex list-none flex-col p-0">
@@ -461,36 +429,44 @@ export function ContactsPage({
                       <span className="flex min-w-0 items-center gap-2">
                         <span className="truncate text-[15.5px] font-bold">{c.username}</span>
                         {chat?.unread ? (
-                          <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-accent px-1.5 font-mono text-[11px] font-bold text-bg">{chat.unread}</span>
+                          <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-accent px-1.5 font-mono text-[11px] font-bold text-bg">
+                            {chat.unread}
+                          </span>
                         ) : null}
                       </span>
-                      <span className={`truncate text-[13px] ${liveNow ? "font-semibold text-live" : chat?.unread ? "font-semibold text-ink-soft" : c.online ? "text-online" : "text-faint"}`}>
+                      <span
+                        className={`truncate text-[13px] ${liveNow ? "font-semibold text-live" : chat?.unread ? "font-semibold text-ink-soft" : c.online ? "text-online" : "text-faint"}`}
+                      >
                         {liveNow
                           ? "in a live chat · tap to go back"
                           : running?.createdByMe
                             ? "live invitation sent · waiting"
                             : chat?.unread
-                          ? `${chat.unread} new message${chat.unread > 1 ? "s" : ""}`
-                          : waiting
-                            ? chat.createdByMe
-                              ? "invited · waiting"
-                              : "invites you to chat"
-                            : lastSeen(c)}
+                              ? `${chat.unread} new message${chat.unread > 1 ? "s" : ""}`
+                              : waiting
+                                ? chat.createdByMe
+                                  ? "invited · waiting"
+                                  : "invites you to chat"
+                                : lastSeen(c)}
                       </span>
                     </span>
                     {chat || running ? (
                       <span className="flex shrink-0 flex-col items-end gap-[5px]">
                         {running ? (
-                          <span className={`inline-flex items-center gap-1.5 rounded-full border border-live-line px-2 py-px font-mono text-[10.5px] font-bold text-live ${liveNow ? "" : "border-dashed"}`}>
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full border border-live-line px-2 py-px font-mono text-[10.5px] font-bold text-live ${liveNow ? "" : "border-dashed"}`}
+                          >
                             {liveNow ? <span className="size-1.5 rounded-full bg-live shadow-[0_0_0_3px_rgba(127,220,232,0.2)]" /> : null}
                             LIVE{liveNow && running.startedAt ? ` · ${clock(now - new Date(running.startedAt).getTime())}` : ""}
                           </span>
                         ) : null}
-                        {chat ? <span
-                          className={`rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${chat.mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep"} ${waiting ? "border-dashed" : ""}`}
-                        >
-                          {modeLabel(chat)}
-                        </span> : null}
+                        {chat ? (
+                          <span
+                            className={`rounded-full border px-2 py-px font-mono text-[10.5px] font-bold ${chat.mode === "auto" ? "border-auto-line text-auto" : "border-keep-line text-keep"} ${waiting ? "border-dashed" : ""}`}
+                          >
+                            {modeLabel(chat)}
+                          </span>
+                        ) : null}
                         {chat?.lastMessageAt ? <span className="font-mono text-[11px] text-faint">{shortWhen(chat.lastMessageAt)}</span> : null}
                       </span>
                     ) : null}
@@ -509,7 +485,17 @@ export function ContactsPage({
             onClick={() => setAskingGroup(true)}
             className="flex min-h-[54px] flex-1 items-center justify-center gap-2 rounded-2xl border border-line-strong bg-panel text-[15px] font-bold text-ink hover:border-accent"
           >
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <circle cx="9" cy="8" r="3.2" />
               <path d="M3 20a6 6 0 0 1 12 0" />
               <path d="M19 8v6M16 11h6" />
@@ -522,16 +508,7 @@ export function ContactsPage({
           onClick={onAdd}
           className="flex min-h-[54px] flex-1 items-center justify-center gap-2.5 rounded-2xl bg-brand text-[15px] font-bold text-white shadow-[0_10px_26px_rgba(126,34,52,0.35)] hover:bg-brand-hover"
         >
-          <svg
-            viewBox="0 0 24 24"
-            width="20"
-            height="20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
             <path d="M12 5v14M5 12h14" />
           </svg>
           Add contact

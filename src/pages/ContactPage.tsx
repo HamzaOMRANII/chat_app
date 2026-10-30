@@ -7,7 +7,15 @@ import { StartChatSheet } from "../components/StartChatSheet";
 import type { Chat } from "../lib/chats";
 import type { LiveSession } from "../lib/liveChat";
 
-type Props = { contact: Contact; userId: string; version: number; onBack: () => void; onChat: (chatId: string) => void; onLive: (sessionId: string) => void; onAuthError: (err: unknown) => boolean };
+type Props = {
+  contact: Contact;
+  userId: string;
+  version: number;
+  onBack: () => void;
+  onChat: (chatId: string) => void;
+  onLive: (sessionId: string) => void;
+  onAuthError: (err: unknown) => boolean;
+};
 
 export function ContactPage({ contact: initial, userId, version, onBack, onChat, onLive, onAuthError }: Props) {
   const [contact, setContact] = useState(initial);
@@ -76,11 +84,19 @@ export function ContactPage({ contact: initial, userId, version, onBack, onChat,
         </button>
 
         {liveChat ? (
-          <button type="button" onClick={() => onLive(liveChat.id)} className="min-h-12 rounded-[14px] border border-live-line bg-live/[0.07] text-[14.5px] font-bold text-live">
+          <button
+            type="button"
+            onClick={() => onLive(liveChat.id)}
+            className="min-h-12 rounded-[14px] border border-live-line bg-live/[0.07] text-[14.5px] font-bold text-live"
+          >
             {liveChat.status === "active" ? "Back to the live chat" : liveChat.createdByMe ? "Live invitation sent · open" : "Live invitation · open"}
           </button>
         ) : chat ? (
-          <button type="button" onClick={() => setStarting("live")} className="min-h-12 rounded-[14px] border border-dashed border-live-line bg-transparent text-[14.5px] font-semibold text-live">
+          <button
+            type="button"
+            onClick={() => setStarting("live")}
+            className="min-h-12 rounded-[14px] border border-dashed border-live-line bg-transparent text-[14.5px] font-semibold text-live"
+          >
             Start a live chat
           </button>
         ) : null}
@@ -100,7 +116,11 @@ export function ContactPage({ contact: initial, userId, version, onBack, onChat,
                 <button type="button" onClick={() => act(confirm)} className="min-h-10 rounded-field bg-brand px-3.5 text-[13.5px] font-bold text-white">
                   {confirm === "remove" ? "Remove" : "Block"}
                 </button>
-                <button type="button" onClick={() => setConfirm(null)} className="min-h-10 rounded-field border border-line-strong bg-transparent px-3.5 text-[13.5px] font-semibold text-ink">
+                <button
+                  type="button"
+                  onClick={() => setConfirm(null)}
+                  className="min-h-10 rounded-field border border-line-strong bg-transparent px-3.5 text-[13.5px] font-semibold text-ink"
+                >
                   Cancel
                 </button>
               </span>
@@ -108,7 +128,11 @@ export function ContactPage({ contact: initial, userId, version, onBack, onChat,
           </Notice>
         ) : (
           <div className="flex flex-col gap-2">
-            <button type="button" onClick={() => setConfirm("remove")} className="min-h-12 rounded-[14px] border border-line-strong bg-transparent text-[14.5px] font-semibold text-ink">
+            <button
+              type="button"
+              onClick={() => setConfirm("remove")}
+              className="min-h-12 rounded-[14px] border border-line-strong bg-transparent text-[14.5px] font-semibold text-ink"
+            >
               Remove contact
             </button>
             <button
@@ -118,7 +142,9 @@ export function ContactPage({ contact: initial, userId, version, onBack, onChat,
             >
               Block {contact.username}
             </button>
-            <p className="m-0 text-center text-xs leading-normal text-faint">Neither is announced, and any chat between you ends. A blocked person can't find you again, even with a new code.</p>
+            <p className="m-0 text-center text-xs leading-normal text-faint">
+              Neither is announced, and any chat between you ends. A blocked person can't find you again, even with a new code.
+            </p>
           </div>
         )}
       </div>

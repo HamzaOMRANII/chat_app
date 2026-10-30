@@ -27,7 +27,9 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
   const peer = chat.with?.username ?? "your contact";
   const open = (e: ExportReq) => Date.parse(e.until) > now;
   const recent = (e: ExportReq) => e.answeredAt && now - Date.parse(e.answeredAt) < 24 * 3600_000;
-  const shown = exports.filter((e) => ((e.status === "pending" || e.status === "approved") && open(e)) || (e.status === "refused" && e.requestedBy === userId && recent(e)));
+  const shown = exports.filter(
+    (e) => ((e.status === "pending" || e.status === "approved") && open(e)) || (e.status === "refused" && e.requestedBy === userId && recent(e)),
+  );
   if (!shown.length) return null;
 
   async function act(path: string, method: "POST" | "DELETE" = "POST") {
@@ -46,7 +48,9 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
       const where = await saveBlob(out.blob, out.name);
       await api(`/api/exports/${e.id}/downloaded`, { method: "POST" });
       setViewSaved(() => out.view);
-      setSaved(`${where}${isNativeApp ? " (Documents/H_CHAT)" : " to your Downloads folder"}: ${out.name} · ${bytes(out.blob.size)}${out.left ? ` · ${out.left} view-only file${out.left > 1 ? "s" : ""} left out` : ""}`);
+      setSaved(
+        `${where}${isNativeApp ? " (Documents/H_CHAT)" : " to your Downloads folder"}: ${out.name} · ${bytes(out.blob.size)}${out.left ? ` · ${out.left} view-only file${out.left > 1 ? "s" : ""} left out` : ""}`,
+      );
       onChanged();
     } catch (err) {
       onError(err);
@@ -56,7 +60,7 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
   }
 
   const what = (e: ExportReq) =>
-    [e.messages ? `${e.counts.messages} messages` : "", e.media ? `${e.counts.files} files · ${bytes(e.counts.bytes)}` : ""].filter(Boolean).join(" + ") + ` · ${PERIOD_TEXT[e.period]}`;
+    `${[e.messages ? `${e.counts.messages} messages` : "", e.media ? `${e.counts.files} files · ${bytes(e.counts.bytes)}` : ""].filter(Boolean).join(" + ")} · ${PERIOD_TEXT[e.period]}`;
 
   return (
     <>
@@ -65,21 +69,37 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
         if (e.status === "refused") {
           return (
             <p key={e.id} className="m-0 self-center font-mono text-[11px] text-danger-ink">
-              // {peer} refused your export
+              {"// "}
+              {peer} refused your export
             </p>
           );
         }
         if (e.status === "pending" && !mine) {
           return (
-            <section key={e.id} role="alert" aria-label="Export request" className="mt-2 flex flex-col gap-2.5 rounded-2xl border border-keep-line bg-keep/[0.07] p-3.5">
+            <section
+              key={e.id}
+              role="alert"
+              aria-label="Export request"
+              className="mt-2 flex flex-col gap-2.5 rounded-2xl border border-keep-line bg-keep/[0.07] p-3.5"
+            >
               <h3 className="m-0 text-[15px] font-extrabold">{peer} wants to export this chat</h3>
               <p className="m-0 font-mono text-[11.5px] text-[#F3E3BF]">{what(e)}</p>
-              <p className="m-0 text-[12.5px] leading-normal text-ink-soft">A copy leaves H_CHAT and stays on {peer}'s device. Your view-only files are never included.</p>
+              <p className="m-0 text-[12.5px] leading-normal text-ink-soft">
+                A copy leaves H_CHAT and stays on {peer}'s device. Your view-only files are never included.
+              </p>
               <div className="flex gap-2">
-                <button type="button" onClick={() => void act(`/api/exports/${e.id}/refuse`)} className="min-h-[46px] flex-1 rounded-xl border border-line-strong bg-transparent text-sm font-semibold text-ink">
+                <button
+                  type="button"
+                  onClick={() => void act(`/api/exports/${e.id}/refuse`)}
+                  className="min-h-[46px] flex-1 rounded-xl border border-line-strong bg-transparent text-sm font-semibold text-ink"
+                >
                   Refuse
                 </button>
-                <button type="button" onClick={() => void act(`/api/exports/${e.id}/approve`)} className="min-h-[46px] flex-1 rounded-xl bg-brand text-sm font-bold text-white">
+                <button
+                  type="button"
+                  onClick={() => void act(`/api/exports/${e.id}/approve`)}
+                  className="min-h-[46px] flex-1 rounded-xl bg-brand text-sm font-bold text-white"
+                >
                   Approve
                 </button>
               </div>
@@ -90,7 +110,8 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
         if (e.status === "pending") {
           return (
             <p key={e.id} className="m-0 flex flex-wrap items-center justify-center gap-2 self-center font-mono text-[11px] text-dim">
-              // waiting for {peer} to approve your export
+              {"// waiting for "}
+              {peer} to approve your export
               <button type="button" onClick={() => void act(`/api/exports/${e.id}`, "DELETE")} className="bg-transparent p-0 font-mono text-[11px] text-link">
                 cancel
               </button>
@@ -100,13 +121,19 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
         if (!mine) {
           return (
             <p key={e.id} className="m-0 self-center font-mono text-[11px] text-dim">
-              // {peer} can save the export for {left(e.until, now)} more{e.downloadedAt ? " · saved" : ""}
+              {"// "}
+              {peer} can save the export for {left(e.until, now)} more{e.downloadedAt ? " · saved" : ""}
             </p>
           );
         }
         const building = progress?.id === e.id;
         return (
-          <section key={e.id} role="status" aria-label="Export ready" className="mt-2 flex flex-col gap-2.5 rounded-2xl border border-[#3A6B57] bg-online/[0.06] p-3.5">
+          <section
+            key={e.id}
+            role="status"
+            aria-label="Export ready"
+            className="mt-2 flex flex-col gap-2.5 rounded-2xl border border-[#3A6B57] bg-online/[0.06] p-3.5"
+          >
             <div className="flex items-center justify-between gap-2.5">
               <h3 className="m-0 text-[15px] font-extrabold">Export ready</h3>
               <span className="font-mono text-[11px] text-online">{left(e.until, now)} left</span>
@@ -137,20 +164,32 @@ export function ExportCards({ exports, chat, userId, onChanged, onError }: Props
                   </button>
                 ) : (
                   <>
-                    <button type="button" onClick={() => viewSaved?.()} className="min-h-11 rounded-xl border border-line-strong bg-transparent text-sm font-semibold text-ink">
+                    <button
+                      type="button"
+                      onClick={() => viewSaved?.()}
+                      className="min-h-11 rounded-xl border border-line-strong bg-transparent text-sm font-semibold text-ink"
+                    >
                       Open the export
                     </button>
                     <p className="m-0 text-[11.5px] leading-normal text-faint">
-                      A website can't open your computer's folders: the zip is in your Downloads folder (Ctrl+J in Chrome, Edge and Firefox, ⌥⌘L in Safari, shows it).
+                      A website can't open your computer's folders: the zip is in your Downloads folder (Ctrl+J in Chrome, Edge and Firefox, ⌥⌘L in Safari,
+                      shows it).
                     </p>
                   </>
                 )}
               </div>
             ) : null}
-            <button type="button" disabled={Boolean(progress)} onClick={() => void build(e)} className="min-h-12 rounded-xl bg-brand text-[14.5px] font-bold text-white disabled:opacity-60">
+            <button
+              type="button"
+              disabled={Boolean(progress)}
+              onClick={() => void build(e)}
+              className="min-h-12 rounded-xl bg-brand text-[14.5px] font-bold text-white disabled:opacity-60"
+            >
               {e.downloadedAt ? "Save it again" : "Build and save the zip"}
             </button>
-            <p className="m-0 text-[11.5px] leading-normal text-faint">chat.html (photos inline), chat.txt and media/. After 24 hours the approval expires: ask again to export later.</p>
+            <p className="m-0 text-[11.5px] leading-normal text-faint">
+              chat.html (photos inline), chat.txt and media/. After 24 hours the approval expires: ask again to export later.
+            </p>
           </section>
         );
       })}

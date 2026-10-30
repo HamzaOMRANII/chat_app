@@ -2,7 +2,17 @@ import { useEffect, useState } from "react";
 import { Notice } from "./Screen";
 import { api } from "../lib/api";
 import { startLive, type LiveSession } from "../lib/liveChat";
-import { AUTO_MINUTES, keepChatKey, longDuration, makeChatKey, RETENTION_MINUTES, shortDuration, type Chat, type ChatMode, type ChatOptions } from "../lib/chats";
+import {
+  AUTO_MINUTES,
+  keepChatKey,
+  longDuration,
+  makeChatKey,
+  RETENTION_MINUTES,
+  shortDuration,
+  type Chat,
+  type ChatMode,
+  type ChatOptions,
+} from "../lib/chats";
 
 /** A day by default (or the longest allowed, if shorter). */
 const DEFAULT_MINUTES = 1440;
@@ -14,7 +24,9 @@ type Props = {
   onLiveStarted: (live: LiveSession) => void;
   /** A stored chat is already open with them: only Live can be started next to it. */
   liveOnly?: boolean;
-  onClose: () => void; onAuthError: (err: unknown) => boolean };
+  onClose: () => void;
+  onAuthError: (err: unknown) => boolean;
+};
 
 /** "Start a chat": only the modes and durations the pair's rules allow. The other side sees the choice before accepting. */
 export function StartChatSheet({ userId, peer, onStarted, onLiveStarted, liveOnly = false, onClose, onAuthError }: Props) {
@@ -78,11 +90,15 @@ export function StartChatSheet({ userId, peer, onStarted, onLiveStarted, liveOnl
         {options === null && !error ? <p className="m-0 text-sm text-dim">Loading…</p> : null}
 
         {options?.keepMaxDays ? (
-          <label className={`flex cursor-pointer flex-col gap-3 rounded-2xl border p-3.5 ${mode === "keep" ? "border-[1.5px] border-keep-line bg-keep/[0.08]" : "border-line-strong"}`}>
+          <label
+            className={`flex cursor-pointer flex-col gap-3 rounded-2xl border p-3.5 ${mode === "keep" ? "border-[1.5px] border-keep-line bg-keep/[0.08]" : "border-line-strong"}`}
+          >
             <span className="flex items-center gap-2.5">
               <input type="radio" name="mode" checked={mode === "keep"} onChange={() => setMode("keep")} className="size-5 accent-[#C99A3E]" />
               <span className="grow text-[15.5px] font-extrabold">Keep-alive</span>
-              <span className="rounded-full border border-keep-line px-2 py-px font-mono text-[10.5px] font-bold text-keep">KEEP · {shortDuration(minutes)}</span>
+              <span className="rounded-full border border-keep-line px-2 py-px font-mono text-[10.5px] font-bold text-keep">
+                KEEP · {shortDuration(minutes)}
+              </span>
             </span>
             <span className="text-[12.5px] text-ink-soft">
               Each message is deleted <strong>{longDuration(minutes)}</strong> after it's sent.
@@ -113,7 +129,9 @@ export function StartChatSheet({ userId, peer, onStarted, onLiveStarted, liveOnl
         ) : null}
 
         {options?.auto ? (
-          <label className={`flex cursor-pointer flex-col gap-1.5 rounded-2xl border p-3.5 ${mode === "auto" ? "border-[1.5px] border-auto-line bg-auto/[0.08]" : "border-line-strong"}`}>
+          <label
+            className={`flex cursor-pointer flex-col gap-1.5 rounded-2xl border p-3.5 ${mode === "auto" ? "border-[1.5px] border-auto-line bg-auto/[0.08]" : "border-line-strong"}`}
+          >
             <span className="flex items-center gap-2.5">
               <input type="radio" name="mode" checked={mode === "auto"} onChange={() => setMode("auto")} className="size-5 accent-[#5672E0]" />
               <span className="grow text-[15.5px] font-extrabold">Automatic</span>
@@ -124,7 +142,9 @@ export function StartChatSheet({ userId, peer, onStarted, onLiveStarted, liveOnl
         ) : null}
 
         {options?.live ? (
-          <label className={`flex cursor-pointer flex-col gap-2.5 rounded-2xl border p-3.5 ${mode === "live" ? "border-[1.5px] border-live-line bg-live/[0.07]" : "border-line-strong"}`}>
+          <label
+            className={`flex cursor-pointer flex-col gap-2.5 rounded-2xl border p-3.5 ${mode === "live" ? "border-[1.5px] border-live-line bg-live/[0.07]" : "border-line-strong"}`}
+          >
             <span className="flex items-center gap-2.5">
               <input type="radio" name="mode" checked={mode === "live"} onChange={() => setMode("live")} className="size-5 accent-[#3FA9B8]" />
               <span className="grow text-[15.5px] font-extrabold">Live</span>

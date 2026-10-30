@@ -48,14 +48,16 @@ export function SecureCodeSettings() {
         Secure code
       </h2>
       <p className="m-0 text-[12.5px] leading-normal text-dim">
-        Sign in without waiting for the email: after your password, tap the title “Check your email” 5 times and type this code. Each use sends
-        you an alert email.
+        Sign in without waiting for the email: after your password, tap the title “Check your email” 5 times and type this code. Each use sends you an alert
+        email.
       </p>
       {!state.allowed ? (
         <Notice tone="warning">The administrator switched the secure code off for your account.</Notice>
       ) : mode === "view" ? (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="grow font-mono text-xs text-dim">{state.set && state.setAt ? `set on ${new Date(state.setAt).toLocaleDateString()}` : "not set"}</span>
+          <span className="grow font-mono text-xs text-dim">
+            {state.set && state.setAt ? `set on ${new Date(state.setAt).toLocaleDateString()}` : "not set"}
+          </span>
           <Button variant="secondary" onClick={() => setMode("set")}>
             {state.set ? "Change" : "Set a secure code"}
           </Button>
@@ -70,8 +72,28 @@ export function SecureCodeSettings() {
           <TextField label="Current password" name="password" type="password" required autoComplete="current-password" />
           {mode === "set" ? (
             <>
-              <TextField label="New secure code (8 to 12 digits)" name="secureCode" type="password" inputMode="numeric" mono required pattern="\d{8,12}" title="8 to 12 digits" autoComplete="off" />
-              <TextField label="Type it again" name="confirm" type="password" inputMode="numeric" mono required pattern="\d{8,12}" title="8 to 12 digits" autoComplete="off" />
+              <TextField
+                label="New secure code (8 to 12 digits)"
+                name="secureCode"
+                type="password"
+                inputMode="numeric"
+                mono
+                required
+                pattern="\d{8,12}"
+                title="8 to 12 digits"
+                autoComplete="off"
+              />
+              <TextField
+                label="Type it again"
+                name="confirm"
+                type="password"
+                inputMode="numeric"
+                mono
+                required
+                pattern="\d{8,12}"
+                title="8 to 12 digits"
+                autoComplete="off"
+              />
             </>
           ) : null}
           {error ? <Notice tone="error">{error}</Notice> : null}

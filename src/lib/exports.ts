@@ -34,7 +34,9 @@ async function allMessages(chatId: string) {
   const out: WireMessage[] = [];
   let before: string | undefined;
   for (;;) {
-    const { messages } = await api<{ messages: WireMessage[] }>(`/api/chats/${chatId}/messages?limit=200${before ? `&before=${encodeURIComponent(before)}` : ""}`);
+    const { messages } = await api<{ messages: WireMessage[] }>(
+      `/api/chats/${chatId}/messages?limit=200${before ? `&before=${encodeURIComponent(before)}` : ""}`,
+    );
     out.unshift(...messages);
     if (messages.length < 200) return out;
     before = messages[0]!.sentAt;
@@ -59,7 +61,17 @@ export async function buildExport(opts: { chat: Chat; userId: string; req: Expor
     const theirKey = chat.keys.find((k) => k.userId === peer.id && k.version === (mine ? m.recipientKeyVersion : m.senderKeyVersion));
     const plain =
       myKey && theirKey
-        ? await decryptMessage({ userId, chatId: chat.id, senderId: m.senderId, myKey, theirKey, ciphertext: m.ciphertext, nonce: m.nonce, senderKeyVersion: m.senderKeyVersion, recipientKeyVersion: m.recipientKeyVersion })
+        ? await decryptMessage({
+            userId,
+            chatId: chat.id,
+            senderId: m.senderId,
+            myKey,
+            theirKey,
+            ciphertext: m.ciphertext,
+            nonce: m.nonce,
+            senderKeyVersion: m.senderKeyVersion,
+            recipientKeyVersion: m.recipientKeyVersion,
+          })
         : null;
     rows.push({ at: m.sentAt, mine, plain });
   }

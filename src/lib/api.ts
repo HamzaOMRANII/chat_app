@@ -60,7 +60,12 @@ export async function api<T = Record<string, unknown>>(path: string, options: { 
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (isNativeApp && typeof data.token === "string") tokenStore.set(data.token);
   if (!res.ok) {
-    throw new ApiError(res.status, String(data.code ?? "error"), String(data.error ?? "Something went wrong"), data.details as Record<string, unknown> | undefined);
+    throw new ApiError(
+      res.status,
+      String(data.code ?? "error"),
+      String(data.error ?? "Something went wrong"),
+      data.details as Record<string, unknown> | undefined,
+    );
   }
   return data as T;
 }

@@ -26,7 +26,8 @@ export function MyMedia({ onOpen }: { onOpen: () => void }) {
         <div className={`h-full ${ratio > 0.8 ? "bg-keep" : "bg-accent"}`} style={{ width: `${Math.min(100, ratio * 100)}%` }} />
       </div>
       <p className="m-0 text-[12.5px] leading-normal text-dim">
-        All your chats' media in one place: download all, delete all, or pick files one by one. Each file is deleted automatically when its chat's time limit is reached.
+        All your chats' media in one place: download all, delete all, or pick files one by one. Each file is deleted automatically when its chat's time limit is
+        reached.
       </p>
       <button type="button" onClick={onOpen} className="self-start bg-transparent p-0 text-[13.5px] font-bold text-link">
         Open my media →

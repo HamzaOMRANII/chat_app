@@ -60,21 +60,18 @@ export function AddContactPage({ initialId, onBack, onAdded, onAuthError }: Prop
     if (value.trim()) void add(value.trim(), mode);
   }
 
-  const applyScan = useCallback(
-    (text: string) => {
-      setWebScanner(false);
-      const id = personalIdFromScan(text);
-      if (!id) {
-        setError("This QR code isn't an H_CHAT ID.");
-        return;
-      }
-      setMode("id");
-      setValue(id);
-      setError("");
-      setSentTo("");
-    },
-    [],
-  );
+  const applyScan = useCallback((text: string) => {
+    setWebScanner(false);
+    const id = personalIdFromScan(text);
+    if (!id) {
+      setError("This QR code isn't an H_CHAT ID.");
+      return;
+    }
+    setMode("id");
+    setValue(id);
+    setError("");
+    setSentTo("");
+  }, []);
 
   // A QR code saved as a picture (sent by the person, a screenshot of their My ID…)
   function pickImage() {
@@ -156,7 +153,17 @@ export function AddContactPage({ initialId, onBack, onAdded, onAuthError }: Prop
                 title="Scan QR code"
                 className="grid size-[54px] shrink-0 place-items-center rounded-[14px] border border-line-strong bg-raised text-ink hover:border-accent"
               >
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="22"
+                  height="22"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
                   <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3M7 12h10" />
                 </svg>
               </button>
@@ -171,7 +178,11 @@ export function AddContactPage({ initialId, onBack, onAdded, onAuthError }: Prop
           </Notice>
         ) : null}
 
-        <button type="submit" disabled={busy || searchesLeft === 0} className="min-h-[52px] rounded-[14px] bg-brand text-[15px] font-bold text-white hover:bg-brand-hover disabled:opacity-50">
+        <button
+          type="submit"
+          disabled={busy || searchesLeft === 0}
+          className="min-h-[52px] rounded-[14px] bg-brand text-[15px] font-bold text-white hover:bg-brand-hover disabled:opacity-50"
+        >
           {mode === "id" ? "Send request" : "Add contact"}
         </button>
 
@@ -190,7 +201,17 @@ export function AddContactPage({ initialId, onBack, onAdded, onAuthError }: Prop
                   disabled={busy || searchesLeft === 0}
                   className="flex min-h-[52px] items-center justify-center gap-2.5 rounded-[14px] border border-line-strong bg-panel px-3 text-[15px] font-semibold text-ink disabled:opacity-50"
                 >
-                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="20"
+                    height="20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
                     <path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3M7 12h10" />
                   </svg>
                   Scan QR code
@@ -202,7 +223,17 @@ export function AddContactPage({ initialId, onBack, onAdded, onAuthError }: Prop
                 disabled={busy || reading || searchesLeft === 0}
                 className="flex min-h-[52px] items-center justify-center gap-2.5 rounded-[14px] border border-line-strong bg-panel px-3 text-[15px] font-semibold text-ink disabled:opacity-50"
               >
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
                   <rect x="3" y="3" width="18" height="18" rx="3" />
                   <circle cx="8.5" cy="8.5" r="1.5" />
                   <path d="m21 15-5-5L5 21" />

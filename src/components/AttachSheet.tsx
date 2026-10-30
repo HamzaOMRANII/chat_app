@@ -24,11 +24,13 @@ export function AttachSheet({ peerName, keptFor, canExport, onPick, onClose }: P
     if (!files.length) return;
     const big = files.find((f) => f.size > MAX_FILE);
     if (big) return setError(`${big.name} is over 100 MB.`);
-    if (media && files.reduce((a, f) => a + f.size, 0) + media.used > media.limit) return setError("Not enough space left in your 2 GB. Delete some media first.");
+    if (media && files.reduce((a, f) => a + f.size, 0) + media.used > media.limit)
+      return setError("Not enough space left in your 2 GB. Delete some media first.");
     onPick(files, viewOnly);
   }
 
-  const tile = "flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-2xl border border-line-strong bg-raised text-[13px] font-bold text-ink hover:border-accent";
+  const tile =
+    "flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-2xl border border-line-strong bg-raised text-[13px] font-bold text-ink hover:border-accent";
   return (
     <div className="fixed inset-0 z-40 flex flex-col justify-end bg-black/55" onClick={onClose}>
       <section
@@ -43,13 +45,23 @@ export function AttachSheet({ peerName, keptFor, canExport, onPick, onClose }: P
             Send a file to {peerName}
           </h2>
           <p className="m-0 text-[13px] leading-normal text-dim">
-            Encrypted on this device before it leaves. The server only keeps scrambled pieces, deleted <strong className="text-keep">{keptFor}</strong> after sending, like
-            the messages.
+            Encrypted on this device before it leaves. The server only keeps scrambled pieces, deleted <strong className="text-keep">{keptFor}</strong> after
+            sending, like the messages.
           </p>
         </div>
         <div className="grid grid-cols-3 gap-2">
           <button type="button" className={tile} onClick={() => gallery.current?.click()}>
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <rect x="3" y="4" width="18" height="16" rx="2" />
               <circle cx="9" cy="10" r="2" />
               <path d="M21 16l-5-5-9 9" />
@@ -57,14 +69,34 @@ export function AttachSheet({ peerName, keptFor, canExport, onPick, onClose }: P
             Photo or video
           </button>
           <button type="button" className={tile} onClick={() => camera.current?.click()}>
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <path d="M3 8h4l2-3h6l2 3h4v11H3z" />
               <circle cx="12" cy="13" r="3.5" />
             </svg>
             Camera
           </button>
           <button type="button" className={tile} onClick={() => doc.current?.click()}>
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
               <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
               <path d="M14 3v5h5" />
             </svg>
@@ -72,7 +104,15 @@ export function AttachSheet({ peerName, keptFor, canExport, onPick, onClose }: P
           </button>
         </div>
         <ViewChoice peerName={peerName} canExport={canExport} viewOnly={viewOnly} onChange={setViewOnly} />
-        <input ref={gallery} type="file" accept="image/*,video/*" multiple hidden aria-label="Choose photos or videos" onChange={(e) => picked(e.target.files)} />
+        <input
+          ref={gallery}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          hidden
+          aria-label="Choose photos or videos"
+          onChange={(e) => picked(e.target.files)}
+        />
         <input ref={camera} type="file" accept="image/*" capture="environment" hidden aria-label="Take a photo" onChange={(e) => picked(e.target.files)} />
         <input ref={doc} type="file" multiple hidden aria-label="Choose documents" onChange={(e) => picked(e.target.files)} />
         {error ? <p className="m-0 rounded-xl border border-dashed border-danger px-3 py-2 text-[13px] text-danger-ink">{error}</p> : null}
@@ -85,7 +125,10 @@ export function AttachSheet({ peerName, keptFor, canExport, onPick, onClose }: P
               </span>
             </div>
             <div className="h-1 overflow-hidden rounded-full bg-line">
-              <div className={`h-full ${media.used / media.limit > 0.8 ? "bg-keep" : "bg-accent"}`} style={{ width: `${Math.min(100, (media.used / media.limit) * 100)}%` }} />
+              <div
+                className={`h-full ${media.used / media.limit > 0.8 ? "bg-keep" : "bg-accent"}`}
+                style={{ width: `${Math.min(100, (media.used / media.limit) * 100)}%` }}
+              />
             </div>
             <div className="font-mono text-[11px] text-faint">up to 100 MB per file · space comes back as files expire</div>
           </div>
@@ -99,7 +142,19 @@ export function AttachSheet({ peerName, keptFor, canExport, onPick, onClose }: P
 }
 
 /** The sender decides: the other side can download the file, or only look at it in H_CHAT. */
-export function ViewChoice({ peerName, canExport, viewOnly, onChange, compact = false }: { peerName: string; canExport: boolean; viewOnly: boolean; onChange: (viewOnly: boolean) => void; compact?: boolean }) {
+export function ViewChoice({
+  peerName,
+  canExport,
+  viewOnly,
+  onChange,
+  compact = false,
+}: {
+  peerName: string;
+  canExport: boolean;
+  viewOnly: boolean;
+  onChange: (viewOnly: boolean) => void;
+  compact?: boolean;
+}) {
   const option = (value: boolean, label: string) => (
     <button
       type="button"

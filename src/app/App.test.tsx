@@ -24,8 +24,8 @@ vi.mock("socket.io-client", () => ({
 // libsodium can't run in jsdom (separate realm); the real crypto is covered by lib/e2e.test.ts.
 // Here: a transparent stand-in so the screens can be exercised end to end.
 vi.mock("../lib/e2e", () => ({
-  identity: async (_u: string, deviceId: string) => ({ deviceId, signPub: "I".repeat(43) + "=", signSec: "s" }),
-  newChatKey: async () => ({ pub: "P".repeat(43) + "=", sig: "S".repeat(86) + "==", secret: "x" }),
+  identity: async (_u: string, deviceId: string) => ({ deviceId, signPub: `${"I".repeat(43)}=`, signSec: "s" }),
+  newChatKey: async () => ({ pub: `${"P".repeat(43)}=`, sig: `${"S".repeat(86)}==`, secret: "x" }),
   keepChatKey: () => {},
   hasChatKey: () => true,
   forgetChat: () => {},
@@ -43,7 +43,7 @@ vi.mock("../lib/e2e", () => ({
   markSafetyChecked: () => {},
   sealLive: async ({ plain }: { plain: unknown }) => ({ nonce: "N".repeat(32), ct: btoa(JSON.stringify(plain)) }),
   openLive: async ({ ct }: { ct: string }) => JSON.parse(atob(ct)),
-  newFileKey: async () => "K".repeat(43) + "=",
+  newFileKey: async () => `${"K".repeat(43)}=`,
   sealPiece: async (_k: string, _id: string, _n: number, _c: number, data: Uint8Array) => new Uint8Array(data.length + 40),
   openPiece: async (_k: string, _id: string, _n: number, _c: number, sealed: Uint8Array) => sealed.subarray(40),
 }));
@@ -90,7 +90,13 @@ describe("H_CHAT sign-in flow", () => {
     routes["/api/auth/login"] = () => [200, { challengeId: "c".repeat(24), emailHint: "h•••a@example.com" }];
     routes["/api/auth/verify-code"] = (body) =>
       body.code === "123456"
-        ? [200, { user: { id: "1", username: "hamza", email: "hamza@example.com", mustReset: false }, lastLogin: { at: new Date().toISOString(), deviceName: "Old laptop", country: "FR" } }]
+        ? [
+            200,
+            {
+              user: { id: "1", username: "hamza", email: "hamza@example.com", mustReset: false },
+              lastLogin: { at: new Date().toISOString(), deviceName: "Old laptop", country: "FR" },
+            },
+          ]
         : [400, { error: "Wrong code. 4 attempts left.", code: "wrong_code", details: { attemptsLeft: 4 } }];
 
     render(<App />);
@@ -205,7 +211,18 @@ describe("contacts", () => {
       {
         contacts: [
           { id: "u1", username: "youssef.k", online: true, lastSeenAt: null, since: "2026-10-12T10:00:00Z", via: "id" },
-          ...(accepted ? [{ id: "u2", username: "sara.m", online: false, lastSeenAt: new Date(Date.now() - 2 * 3600_000).toISOString(), since: "2026-10-16T10:00:00Z", via: "id" }] : []),
+          ...(accepted
+            ? [
+                {
+                  id: "u2",
+                  username: "sara.m",
+                  online: false,
+                  lastSeenAt: new Date(Date.now() - 2 * 3600_000).toISOString(),
+                  since: "2026-10-16T10:00:00Z",
+                  via: "id",
+                },
+              ]
+            : []),
         ],
         incoming: accepted ? [] : [{ id: "r1", username: "sara.m", at: new Date().toISOString() }],
         outgoing: [{ id: "r2", username: "nadia.s", at: new Date().toISOString() }],
@@ -293,7 +310,10 @@ describe("scanned text", () => {
 describe("Android app download", () => {
   it("is one tap away in the signed-in web app", async () => {
     routes["/api/auth/me"] = () => [200, { user: { id: "1", username: "hamza", email: "hamza@example.com", mustReset: false } }];
-    routes["/download/latest.json"] = () => [200, { version: "0.3.2", versionCode: 302, file: "h_chat-0.3.2.apk", size: 5_800_000, sha256: "ab".repeat(32), date: "2026-10-16" }];
+    routes["/download/latest.json"] = () => [
+      200,
+      { version: "0.3.2", versionCode: 302, file: "h_chat-0.3.2.apk", size: 5_800_000, sha256: "ab".repeat(32), date: "2026-10-16" },
+    ];
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Get the Android app" }));
     expect(await screen.findByText(/v0\.3\.2/)).toBeInTheDocument();
@@ -303,8 +323,8 @@ describe("Android app download", () => {
 
 describe("stored chats", () => {
   const me = { id: "1".repeat(24), username: "hamza", email: "hamza@example.com", mustReset: false };
-  const leila = { id: "2".repeat(24), username: "leila.b", online: true, lastSeenAt: null, identityPub: "I".repeat(43) + "=" };
-  const key = (userId: string) => ({ userId, version: 1, pub: "P".repeat(43) + "=", sig: "S".repeat(86) + "==", identityPub: "I".repeat(43) + "=" });
+  const leila = { id: "2".repeat(24), username: "leila.b", online: true, lastSeenAt: null, identityPub: `${"I".repeat(43)}=` };
+  const key = (userId: string) => ({ userId, version: 1, pub: `${"P".repeat(43)}=`, sig: `${"S".repeat(86)}==`, identityPub: `${"I".repeat(43)}=` });
   const enc = (t: string) => btoa(JSON.stringify({ t }));
   const wire = (id: string, senderId: string, text: string, extra: Record<string, unknown> = {}) => ({
     id,
@@ -337,14 +357,24 @@ describe("stored chats", () => {
 
   beforeEach(() => {
     routes["/api/auth/me"] = () => [200, { user: me }];
-    routes["/api/contacts"] = () => [200, { contacts: [{ id: leila.id, username: "leila.b", online: true, lastSeenAt: null, since: new Date().toISOString(), via: "invite" }], incoming: [], outgoing: [] }];
+    routes["/api/contacts"] = () => [
+      200,
+      {
+        contacts: [{ id: leila.id, username: "leila.b", online: true, lastSeenAt: null, since: new Date().toISOString(), via: "invite" }],
+        incoming: [],
+        outgoing: [],
+      },
+    ];
   });
 
   it("accepts an invitation, reads, sends, and follows the chat live", async () => {
     let status = "invited";
     const posted: Record<string, unknown>[] = [];
     routes["/api/chats"] = () => [200, { chats: [chat({ status, keys: status === "invited" ? [key(leila.id)] : [key(me.id), key(leila.id)] })] }];
-    routes[`/api/chats/${"c".repeat(24)}`] = () => [200, { chat: chat({ status, keys: status === "invited" ? [key(leila.id)] : [key(me.id), key(leila.id)] }) }];
+    routes[`/api/chats/${"c".repeat(24)}`] = () => [
+      200,
+      { chat: chat({ status, keys: status === "invited" ? [key(leila.id)] : [key(me.id), key(leila.id)] }) },
+    ];
     routes[`/api/chats/${"c".repeat(24)}/accept`] = () => {
       status = "active";
       return [200, { chat: chat() }];
@@ -374,7 +404,7 @@ describe("stored chats", () => {
     expect(posted[0]).toMatchObject({ senderKeyVersion: 1, recipientKeyVersion: 1 });
     expect(posted[0]).not.toHaveProperty("text");
 
-    socketHandlers["typing"]?.({ chatId: "c".repeat(24) });
+    socketHandlers.typing?.({ chatId: "c".repeat(24) });
     expect(await screen.findByText("leila.b is typing…")).toBeInTheDocument();
     socketHandlers["msg:new"]?.({ chatId: "c".repeat(24), message: wire("m2", leila.id, "Can you send the signed copy?") });
     expect(await screen.findByText("Can you send the signed copy?")).toBeInTheDocument();
@@ -420,7 +450,7 @@ describe("stored chats", () => {
 
     // Sent while this phone's connection was down: no live event ever came
     wireList = [...wireList, wire("m2", leila.id, "Sent while you were offline")];
-    socketHandlers["connect"]!(undefined);
+    socketHandlers.connect!(undefined);
     expect(await screen.findByText("Sent while you were offline")).toBeInTheDocument();
   });
 
@@ -430,9 +460,9 @@ describe("stored chats", () => {
     routes[`/api/chats/${"c".repeat(24)}/messages`] = () => [200, { messages: [] }];
     render(<App />);
     expect(await screen.findByRole("button", { name: "Add contact" })).toBeInTheDocument();
-    await waitFor(() => expect(socketHandlers["notify"]).toBeDefined());
+    await waitFor(() => expect(socketHandlers.notify).toBeDefined());
 
-    socketHandlers["notify"]!({ kind: "contact_request", title: "rami.t", body: "wants to connect with you", tag: "contact:r", open: {}, system: true });
+    socketHandlers.notify!({ kind: "contact_request", title: "rami.t", body: "wants to connect with you", tag: "contact:r", open: {}, system: true });
     expect(await screen.findByText("wants to connect with you")).toBeInTheDocument();
 
     // leila accepts my invitation: the chat opens without a tap
@@ -440,8 +470,22 @@ describe("stored chats", () => {
     expect(await screen.findByText("No messages yet. Say hello.")).toBeInTheDocument();
 
     // A message in another chat: banner; in this one: nothing extra
-    socketHandlers["notify"]!({ kind: "message", title: "leila.b", body: "New message", tag: `chat:${"c".repeat(24)}`, open: { chatId: "c".repeat(24) }, system: true });
-    socketHandlers["notify"]!({ kind: "message", title: "rami.t", body: "New message", tag: `chat:${"d".repeat(24)}`, open: { chatId: "d".repeat(24) }, system: true });
+    socketHandlers.notify!({
+      kind: "message",
+      title: "leila.b",
+      body: "New message",
+      tag: `chat:${"c".repeat(24)}`,
+      open: { chatId: "c".repeat(24) },
+      system: true,
+    });
+    socketHandlers.notify!({
+      kind: "message",
+      title: "rami.t",
+      body: "New message",
+      tag: `chat:${"d".repeat(24)}`,
+      open: { chatId: "d".repeat(24) },
+      system: true,
+    });
     expect(await screen.findAllByText("New message")).toHaveLength(1);
     expect(screen.getByRole("button", { name: /rami\.t\s*New message/ })).toBeInTheDocument();
   });
@@ -457,7 +501,10 @@ describe("stored chats", () => {
     };
     routes[`/api/chats/options/${leila.id}`] = () => [200, { options: { keepMaxDays: 3, auto: false, live: false } }];
     routes[`/api/chats/${"c".repeat(24)}`] = () => [200, { chat: chat({ status: "invited", createdByMe: true, retentionMinutes: 30, keys: [key(me.id)] }) }];
-    routes[`/api/contacts/${leila.id}`] = () => [200, { contact: { id: leila.id, username: "leila.b", online: true, lastSeenAt: null, since: new Date().toISOString(), via: "invite" } }];
+    routes[`/api/contacts/${leila.id}`] = () => [
+      200,
+      { contact: { id: leila.id, username: "leila.b", online: true, lastSeenAt: null, since: new Date().toISOString(), via: "invite" } },
+    ];
 
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
@@ -479,8 +526,8 @@ describe("stored chats", () => {
 
 describe("live chats", () => {
   const me = { id: "1".repeat(24), username: "hamza", email: "hamza@example.com", mustReset: false };
-  const leila = { id: "2".repeat(24), username: "leila.b", online: true, identityPub: "I".repeat(43) + "=" };
-  const key = (userId: string) => ({ userId, pub: "P".repeat(43) + "=", sig: "S".repeat(86) + "==", identityPub: "I".repeat(43) + "=" });
+  const leila = { id: "2".repeat(24), username: "leila.b", online: true, identityPub: `${"I".repeat(43)}=` };
+  const key = (userId: string) => ({ userId, pub: `${"P".repeat(43)}=`, sig: `${"S".repeat(86)}==`, identityPub: `${"I".repeat(43)}=` });
   const id = "d".repeat(24);
   const session = (over: Record<string, unknown> = {}) => ({
     id,
@@ -498,12 +545,28 @@ describe("live chats", () => {
 
   beforeEach(() => {
     routes["/api/auth/me"] = () => [200, { user: me }];
-    routes["/api/contacts"] = () => [200, { contacts: [{ id: leila.id, username: "leila.b", online: true, lastSeenAt: null, since: new Date().toISOString(), via: "invite" }], incoming: [], outgoing: [] }];
+    routes["/api/contacts"] = () => [
+      200,
+      {
+        contacts: [{ id: leila.id, username: "leila.b", online: true, lastSeenAt: null, since: new Date().toISOString(), via: "invite" }],
+        incoming: [],
+        outgoing: [],
+      },
+    ];
   });
 
   it("shows the invitation with its 5-minute countdown, goes live, and shows each other's typing", async () => {
     let status = "invited";
-    routes["/api/live"] = () => [200, { live: [status === "invited" ? session() : session({ status: "active", startedAt: new Date().toISOString(), inviteExpiresAt: null, keys: [key(me.id), key(leila.id)] })] }];
+    routes["/api/live"] = () => [
+      200,
+      {
+        live: [
+          status === "invited"
+            ? session()
+            : session({ status: "active", startedAt: new Date().toISOString(), inviteExpiresAt: null, keys: [key(me.id), key(leila.id)] }),
+        ],
+      },
+    ];
     routes[`/api/live/${id}/accept`] = () => {
       status = "active";
       return [200, { live: session({ status: "active", startedAt: new Date().toISOString(), inviteExpiresAt: null, keys: [key(me.id), key(leila.id)] }) }];
@@ -521,12 +584,12 @@ describe("live chats", () => {
 
     // Their draft appears letter by letter, corrections included; a finished line stays
     await waitFor(() => expect(screen.getByLabelText("Live message")).not.toBeDisabled());
-    socketHandlers["live"]!(sealed({ t: "draft", text: "Total is 4", n: 1 }));
+    socketHandlers.live!(sealed({ t: "draft", text: "Total is 4", n: 1 }));
     expect(await screen.findByText("leila.b is typing live")).toBeInTheDocument();
-    socketHandlers["live"]!(sealed({ t: "draft", text: "Total is", n: 2 }));
+    socketHandlers.live!(sealed({ t: "draft", text: "Total is", n: 2 }));
     await screen.findByText("Total is");
-    socketHandlers["live"]!(sealed({ t: "draft", text: "stale", n: 1 })); // out of order: ignored
-    socketHandlers["live"]!(sealed({ t: "line", text: "Total is 42", n: 3 }));
+    socketHandlers.live!(sealed({ t: "draft", text: "stale", n: 1 })); // out of order: ignored
+    socketHandlers.live!(sealed({ t: "line", text: "Total is 42", n: 3 }));
     expect(await screen.findByText("Total is 42")).toBeInTheDocument();
     expect(screen.queryByText("leila.b is typing live")).toBeNull();
     expect(screen.queryByText("stale")).toBeNull();
@@ -557,10 +620,16 @@ describe("live chats", () => {
         invited = true;
         return [201, { live: session({ createdByMe: true, keys: [key(me.id)], inviteExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString() }) }];
       }
-      return [200, { live: invited ? [session({ createdByMe: true, keys: [key(me.id)], inviteExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString() })] : [] }];
+      return [
+        200,
+        { live: invited ? [session({ createdByMe: true, keys: [key(me.id)], inviteExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString() })] : [] },
+      ];
     };
     routes[`/api/chats/options/${leila.id}`] = () => [200, { options: { keepMaxDays: 7, auto: true, live: true } }];
-    routes[`/api/contacts/${leila.id}`] = () => [200, { contact: { id: leila.id, username: "leila.b", online: true, lastSeenAt: null, since: new Date().toISOString(), via: "invite" } }];
+    routes[`/api/contacts/${leila.id}`] = () => [
+      200,
+      { contact: { id: leila.id, username: "leila.b", online: true, lastSeenAt: null, since: new Date().toISOString(), via: "invite" } },
+    ];
     routes[`/api/live/${id}`] = () => [200, { ok: true }];
 
     render(<App />);
@@ -579,7 +648,20 @@ describe("live chats", () => {
   it("starts a live chat from an open stored chat, next to it", async () => {
     const chatId = "c".repeat(24);
     const ck = (userId: string) => ({ ...key(userId), version: 1 });
-    const stored = { id: chatId, with: { ...leila, lastSeenAt: null }, mode: "keep", retentionMinutes: 1440, status: "active", createdByMe: true, invitedAt: new Date().toISOString(), inviteExpiresAt: null, acceptedAt: new Date().toISOString(), lastMessageAt: null, unread: 0, keys: [ck(me.id), ck(leila.id)] };
+    const stored = {
+      id: chatId,
+      with: { ...leila, lastSeenAt: null },
+      mode: "keep",
+      retentionMinutes: 1440,
+      status: "active",
+      createdByMe: true,
+      invitedAt: new Date().toISOString(),
+      inviteExpiresAt: null,
+      acceptedAt: new Date().toISOString(),
+      lastMessageAt: null,
+      unread: 0,
+      keys: [ck(me.id), ck(leila.id)],
+    };
     let invited = false;
     const waiting = () => session({ createdByMe: true, keys: [key(me.id)], inviteExpiresAt: new Date(Date.now() + 5 * 60_000).toISOString() });
     routes["/api/chats"] = () => [200, { chats: [stored] }];
@@ -608,20 +690,66 @@ describe("live chats", () => {
     const chatId = "c".repeat(24);
     const fileId = "f".repeat(24);
     const ck = (userId: string) => ({ ...key(userId), version: 1 });
-    const stored = { id: chatId, with: { ...leila, lastSeenAt: null }, mode: "keep", retentionMinutes: 4320, status: "active", createdByMe: true, invitedAt: new Date().toISOString(), inviteExpiresAt: null, acceptedAt: new Date().toISOString(), lastMessageAt: null, unread: 0, keys: [ck(me.id), ck(leila.id)] };
-    const wire = (id: string, plain: object) => ({ id, senderId: leila.id, ciphertext: btoa(JSON.stringify(plain)), nonce: "N".repeat(32), senderKeyVersion: 1, recipientKeyVersion: 1, sentAt: new Date().toISOString(), deliveredAt: null, readAt: null, expiresAt: new Date(Date.now() + 864e5).toISOString() });
+    const stored = {
+      id: chatId,
+      with: { ...leila, lastSeenAt: null },
+      mode: "keep",
+      retentionMinutes: 4320,
+      status: "active",
+      createdByMe: true,
+      invitedAt: new Date().toISOString(),
+      inviteExpiresAt: null,
+      acceptedAt: new Date().toISOString(),
+      lastMessageAt: null,
+      unread: 0,
+      keys: [ck(me.id), ck(leila.id)],
+    };
+    const wire = (id: string, plain: object) => ({
+      id,
+      senderId: leila.id,
+      ciphertext: btoa(JSON.stringify(plain)),
+      nonce: "N".repeat(32),
+      senderKeyVersion: 1,
+      recipientKeyVersion: 1,
+      sentAt: new Date().toISOString(),
+      deliveredAt: null,
+      readAt: null,
+      expiresAt: new Date(Date.now() + 864e5).toISOString(),
+    });
     const doc = { id: "e".repeat(24), name: "contract.pdf", mime: "application/pdf", size: 18_600_000, key: "K", chunks: 5 };
     const secret = { id: "b".repeat(24), name: "notes.txt", mime: "text/plain", size: 900, key: "K", chunks: 1, view: true };
     const gone = { id: "a".repeat(24), name: "site-visit.mp4", mime: "video/mp4", size: 91_000_000, key: "K", chunks: 23 };
-    routes["/api/media"] = () => [200, { used: 1_620_000_000, files: 23, limit: 2 * 1024 ** 3, maxFile: 100 * 1024 ** 2, request: { deadline: new Date(Date.now() + 3 * 864e5).toISOString() }, chats: [] }];
+    routes["/api/media"] = () => [
+      200,
+      {
+        used: 1_620_000_000,
+        files: 23,
+        limit: 2 * 1024 ** 3,
+        maxFile: 100 * 1024 ** 2,
+        request: { deadline: new Date(Date.now() + 3 * 864e5).toISOString() },
+        chats: [],
+      },
+    ];
     routes["/api/chats"] = () => [200, { chats: [stored] }];
     routes[`/api/chats/${chatId}`] = () => [200, { chat: stored }];
-    routes[`/api/chats/${chatId}/messages`] = (body) => (body.ciphertext ? [201, { message: { ...wire("m9", {}), senderId: me.id, id: "m9", fileId } }] : [200, { messages: [wire("m1", { t: "", f: doc }), wire("m2", { t: "", f: gone }), wire("m3", { t: "", f: secret })], me: me.id }]);
+    routes[`/api/chats/${chatId}/messages`] = (body) =>
+      body.ciphertext
+        ? [201, { message: { ...wire("m9", {}), senderId: me.id, id: "m9", fileId } }]
+        : [200, { messages: [wire("m1", { t: "", f: doc }), wire("m2", { t: "", f: gone }), wire("m3", { t: "", f: secret })], me: me.id }];
     routes[`/api/chats/${chatId}/receipts`] = () => [200, { delivered: 0, read: 0 }];
     routes[`/api/chats/${chatId}/files`] = (body) =>
       body.size
         ? [201, { file: { id: fileId, chunks: 1, chunkSize: 4 * 1024 * 1024 } }]
-        : [200, { files: [{ id: doc.id, status: "ready" }, { id: gone.id, status: "deleted", deletedReason: "removed_by_admin" }, { id: secret.id, status: "ready" }] }];
+        : [
+            200,
+            {
+              files: [
+                { id: doc.id, status: "ready" },
+                { id: gone.id, status: "deleted", deletedReason: "removed_by_admin" },
+                { id: secret.id, status: "ready" },
+              ],
+            },
+          ];
     routes[`/api/files/${fileId}/chunks/0`] = () => [200, { received: 1, chunks: 1 }];
     routes[`/api/chats/options/${leila.id}`] = () => [200, { options: { keepMaxDays: 7, auto: true, live: true, files: "all", export: true } }];
 
@@ -632,13 +760,14 @@ describe("live chats", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /leila.b/ }));
     expect(await screen.findByText("contract.pdf")).toBeInTheDocument();
-    expect(screen.getByText(/site-visit.mp4 · removed by an administrator/)).toBeInTheDocument();
+    expect(await screen.findByText(/site-visit.mp4 · removed by an administrator/)).toBeInTheDocument();
     // A view-only file from leila: the page is protected and right-click is blocked on it
-    const shared = screen.getByRole("button", { name: /Open notes.txt/ });
+    const shared = await screen.findByRole("button", { name: /Open notes.txt/ });
     expect(shared).toHaveAttribute("data-view-only");
     expect(document.documentElement).toHaveAttribute("data-protected");
     expect(fireEvent.contextMenu(shared)).toBe(false);
-    expect(screen.getByText(/messages and files are deleted 3 days after they're sent/)).toBeInTheDocument();
+    // Shown once the chat options have loaded (a separate request): wait for it, the machine may be busy
+    expect(await screen.findByText(/messages and files are deleted 3 days after they're sent/)).toBeInTheDocument();
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Attach a file" })).not.toBeDisabled());
     fireEvent.click(screen.getByRole("button", { name: "Attach a file" }));
@@ -659,7 +788,20 @@ describe("live chats", () => {
   it("refuses files where the contact's rules don't allow them", async () => {
     const chatId = "c".repeat(24);
     const ck = (userId: string) => ({ ...key(userId), version: 1 });
-    const stored = { id: chatId, with: { ...leila, lastSeenAt: null }, mode: "keep", retentionMinutes: 1440, status: "active", createdByMe: true, invitedAt: new Date().toISOString(), inviteExpiresAt: null, acceptedAt: new Date().toISOString(), lastMessageAt: null, unread: 0, keys: [ck(me.id), ck(leila.id)] };
+    const stored = {
+      id: chatId,
+      with: { ...leila, lastSeenAt: null },
+      mode: "keep",
+      retentionMinutes: 1440,
+      status: "active",
+      createdByMe: true,
+      invitedAt: new Date().toISOString(),
+      inviteExpiresAt: null,
+      acceptedAt: new Date().toISOString(),
+      lastMessageAt: null,
+      unread: 0,
+      keys: [ck(me.id), ck(leila.id)],
+    };
     routes["/api/chats"] = () => [200, { chats: [stored] }];
     routes[`/api/chats/${chatId}`] = () => [200, { chat: stored }];
     routes[`/api/chats/${chatId}/messages`] = () => [200, { messages: [], me: me.id }];
@@ -672,13 +814,44 @@ describe("live chats", () => {
   it("asks to export, and the other side approves from the chat", async () => {
     const chatId = "c".repeat(24);
     const ck = (userId: string) => ({ ...key(userId), version: 1 });
-    const stored = { id: chatId, with: { ...leila, lastSeenAt: null }, mode: "keep", retentionMinutes: 1440, status: "active", createdByMe: true, invitedAt: new Date().toISOString(), inviteExpiresAt: null, acceptedAt: new Date().toISOString(), lastMessageAt: null, unread: 0, keys: [ck(me.id), ck(leila.id)] };
-    const request = (over: object) => ({ id: "e".repeat(24), chatId, requestedBy: leila.id, approverId: me.id, messages: true, media: true, period: "all", counts: { messages: 214, files: 23, bytes: 186e6 }, status: "pending", requestedAt: new Date().toISOString(), answeredAt: null, until: new Date(Date.now() + 23 * 3600_000).toISOString(), downloadedAt: null, ...over });
+    const stored = {
+      id: chatId,
+      with: { ...leila, lastSeenAt: null },
+      mode: "keep",
+      retentionMinutes: 1440,
+      status: "active",
+      createdByMe: true,
+      invitedAt: new Date().toISOString(),
+      inviteExpiresAt: null,
+      acceptedAt: new Date().toISOString(),
+      lastMessageAt: null,
+      unread: 0,
+      keys: [ck(me.id), ck(leila.id)],
+    };
+    const request = (over: object) => ({
+      id: "e".repeat(24),
+      chatId,
+      requestedBy: leila.id,
+      approverId: me.id,
+      messages: true,
+      media: true,
+      period: "all",
+      counts: { messages: 214, files: 23, bytes: 186e6 },
+      status: "pending",
+      requestedAt: new Date().toISOString(),
+      answeredAt: null,
+      until: new Date(Date.now() + 23 * 3600_000).toISOString(),
+      downloadedAt: null,
+      ...over,
+    });
     let list = [request({})];
     routes["/api/chats"] = () => [200, { chats: [stored] }];
     routes[`/api/chats/${chatId}`] = () => [200, { chat: stored }];
     routes[`/api/chats/${chatId}/messages`] = () => [200, { messages: [], me: me.id }];
-    routes[`/api/chats/${chatId}/exports`] = (body) => (body.period ? [201, { export: request({ requestedBy: me.id, approverId: leila.id, period: body.period, messages: body.messages, media: body.media }) }] : [200, { exports: list }]);
+    routes[`/api/chats/${chatId}/exports`] = (body) =>
+      body.period
+        ? [201, { export: request({ requestedBy: me.id, approverId: leila.id, period: body.period, messages: body.messages, media: body.media }) }]
+        : [200, { exports: list }];
     routes[`/api/exports/${"e".repeat(24)}/approve`] = () => {
       list = [request({ status: "approved", answeredAt: new Date().toISOString() })];
       return [200, { export: list[0] }];
@@ -697,13 +870,28 @@ describe("live chats", () => {
     fireEvent.click(await screen.findByRole("radio", { name: "Last 7 days" }));
     fireEvent.click(within(screen.getByRole("dialog", { name: "Export this chat" })).getByRole("checkbox", { name: /^Media/ }));
     fireEvent.click(screen.getByRole("button", { name: "Ask leila.b to approve" }));
-    await waitFor(() => expect(calls.find((c) => c.path === `/api/chats/${chatId}/exports` && c.body.period)!.body).toEqual({ messages: true, media: false, period: "7d" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.path === `/api/chats/${chatId}/exports` && c.body.period)!.body).toEqual({ messages: true, media: false, period: "7d" }),
+    );
   });
 
   it("calls: tells the caller kindly when the other person isn't taking calls, and shows an incoming call", async () => {
     const chatId = "c".repeat(24);
     const ck = (userId: string) => ({ ...key(userId), version: 1 });
-    const stored = { id: chatId, with: { ...leila, lastSeenAt: null }, mode: "keep", retentionMinutes: 1440, status: "active", createdByMe: true, invitedAt: new Date().toISOString(), inviteExpiresAt: null, acceptedAt: new Date().toISOString(), lastMessageAt: null, unread: 0, keys: [ck(me.id), ck(leila.id)] };
+    const stored = {
+      id: chatId,
+      with: { ...leila, lastSeenAt: null },
+      mode: "keep",
+      retentionMinutes: 1440,
+      status: "active",
+      createdByMe: true,
+      invitedAt: new Date().toISOString(),
+      inviteExpiresAt: null,
+      acceptedAt: new Date().toISOString(),
+      lastMessageAt: null,
+      unread: 0,
+      keys: [ck(me.id), ck(leila.id)],
+    };
     routes["/api/chats"] = () => [200, { chats: [stored] }];
     routes[`/api/chats/${chatId}`] = () => [200, { chat: stored }];
     routes[`/api/chats/${chatId}/messages`] = () => [200, { messages: [], me: me.id }];

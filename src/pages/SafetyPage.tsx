@@ -24,8 +24,8 @@ export function SafetyPage({ chat, userId, onBack }: { chat: Chat; userId: strin
       <PageHeader title="Safety code" onBack={onBack} />
       <div className="flex flex-col gap-4 px-[18px] py-[22px]">
         <p className="m-0 text-sm leading-relaxed text-ink-soft">
-          Compare this code with <strong className="text-ink">{peer?.username}</strong>, in person or on a call. If it's the same on both phones, nobody is reading your
-          messages in between.
+          Compare this code with <strong className="text-ink">{peer?.username}</strong>, in person or on a call. If it's the same on both phones, nobody is
+          reading your messages in between.
         </p>
         {!peer?.identityPub ? <Notice tone="warning">{peer?.username ?? "Your contact"} hasn't set up encryption on their device yet.</Notice> : null}
         {code ? (
@@ -43,7 +43,18 @@ export function SafetyPage({ chat, userId, onBack }: { chat: Chat; userId: strin
         </p>
         {checkedAt ? (
           <p role="status" className="m-0 flex items-center gap-2.5 rounded-field border border-online/40 bg-online/10 px-3.5 py-3 text-[13px] text-[#C9F2DF]">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-online" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="shrink-0 text-online"
+              aria-hidden="true"
+            >
               <path d="M20 6 9 17l-5-5" />
             </svg>
             Marked as checked on {new Date(checkedAt).toLocaleDateString()}
